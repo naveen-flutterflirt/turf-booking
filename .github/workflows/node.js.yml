@@ -30,5 +30,10 @@ jobs:
           ${{ secrets.PROD_ENV_FILE }}
           EOF
 
+      - name: Install PM2
+        run: npm install -g pm2
+
       - name: Restart Backend Server
-        run: pm2 restart all            
+        env:
+          RUNNER_TRACKING_ID: ""
+        run: pm2 start server.js --name "turf-backend" --update-env || pm2 reload "turf-backend" --update-env
