@@ -6,12 +6,14 @@ const crypto = require('crypto');
 
 // Get only ACTIVE turfs for the customer app/website
 const getActiveTurfs = async (req, res) => {
-  const { lat, lng, radius, min_price, max_price, sport, date, page = 1, limit = 5 } = req.query;
+  const { lat, lng, radius, min_price, max_price, sport, date, page, limit } = req.query;
 
   try {
-    const parsedLimit = parseInt(limit, 10) || 5;
-    const parsedPage = parseInt(page, 10) || 1;
-    const offset = (parsedPage - 1) * parsedLimit;
+    // Pagination is optional: if page/limit are not provided, return all turfs
+    const isPaginated = page !== undefined || limit !== undefined;
+    const parsedLimit = isPaginated ? (parseInt(limit, 10) || 10) : null;
+    const parsedPage = isPaginated ? (parseInt(page, 10) || 1) : null;
+    const offset = isPaginated ? (parsedPage - 1) * parsedLimit : null;
 
     let selectDistance = "NULL AS distance_km";
     let whereClause = "WHERE t.status = 'ACTIVE' AND t.is_open = TRUE";
@@ -88,6 +90,13 @@ const getActiveTurfs = async (req, res) => {
       paramIndex += 1;
     }
 
+    // Build LIMIT/OFFSET clause only when pagination is requested
+    let paginationClause = '';
+    if (isPaginated) {
+      paginationClause = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      queryParams.push(parsedLimit, offset);
+    }
+
     const query = `
       SELECT 
         t.*,
@@ -113,10 +122,8 @@ const getActiveTurfs = async (req, res) => {
       FROM turfs t
       ${whereClause}
       ${orderByClause}
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      ${paginationClause}
     `;
-    
-    queryParams.push(parsedLimit, offset);
     
     const turfResult = await db.query(query, queryParams);
 
@@ -133,9 +140,9 @@ const getActiveTurfs = async (req, res) => {
       data: data,
       meta: {
         total,
-        page: parsedPage,
-        limit: parsedLimit,
-        total_pages: Math.ceil(total / parsedLimit)
+        page: parsedPage || 1,
+        limit: parsedLimit || total,
+        total_pages: isPaginated ? Math.ceil(total / parsedLimit) : 1
       }
     });
   } catch (err) {
