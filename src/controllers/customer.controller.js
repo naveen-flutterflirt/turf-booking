@@ -222,11 +222,16 @@ const getTurfSlots = async (req, res) => {
     const slots = [];
     let current = opening_time;
 
-    while (current < closing_time) {
+    // Treat midnight (00:00:00) as 24:00:00 for correct comparison
+    const effectiveClosingTime = closing_time === '00:00:00' ? '24:00:00' : closing_time;
+
+    while (current < effectiveClosingTime) {
       const nextHour = addHoursToTime(current, 1);
+      // Convert midnight result to 24:00:00 for comparison
+      const effectiveNextHour = nextHour === '00:00:00' ? '24:00:00' : nextHour;
       
       // Stop if next hour goes past closing time
-      if (nextHour > closing_time && nextHour !== '00:00:00') break; 
+      if (effectiveNextHour > effectiveClosingTime) break; 
 
       // Check if this slot overlaps with any booking
       let isBooked = false;
@@ -254,11 +259,13 @@ const getTurfSlots = async (req, res) => {
 
       slots.push({
         start: current.substring(0, 5), // "HH:MM"
-        end: nextHour.substring(0, 5),
+        end: nextHour === '00:00:00' ? '00:00' : nextHour.substring(0, 5),
         status: isBooked ? 'BOOKED' : (isExpired ? 'EXPIRED' : 'AVAILABLE')
       });
 
       current = nextHour;
+      // If we've wrapped to midnight, stop
+      if (current === '00:00:00') break;
     }
 
     return res.status(200).json({ success: true, data: slots });
@@ -296,11 +303,14 @@ const createBooking = async (req, res) => {
     let requestedSlots = []; // Array of objects: { start_time, end_time }
     if (is_full_day) {
       let current = turf.opening_time;
-      while (current < turf.closing_time) {
+      const effectiveClose = turf.closing_time === '00:00:00' ? '24:00:00' : turf.closing_time;
+      while (current < effectiveClose) {
         const nextHour = addHoursToTime(current, 1);
-        if (nextHour > turf.closing_time && nextHour !== '00:00:00') break;
+        const effectiveNext = nextHour === '00:00:00' ? '24:00:00' : nextHour;
+        if (effectiveNext > effectiveClose) break;
         requestedSlots.push({ start_time: current, end_time: nextHour });
         current = nextHour;
+        if (current === '00:00:00') break;
       }
     } else {
       // time_slots should be an array of objects e.g. [{ start_time: "16:00", end_time: "17:00" }]
