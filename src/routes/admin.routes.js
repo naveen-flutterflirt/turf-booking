@@ -8,14 +8,17 @@ const { authorizeRole } = require('../middlewares/role.middleware');
 router.use(authenticateUser);
 router.use(authorizeRole(['ADMIN']));
 
+
+
+// Turf routes (specific static routes before generic /:id routes)
 router.get('/turfs', adminController.getAllTurfs);
+router.get('/turfs/notify-nearby', adminController.getNotificationCampaigns);
+router.post('/turfs/notify-nearby', adminController.notifyNearbyUsers);
+router.delete('/turfs/notify-nearby/:id', adminController.deleteNotificationCampaign);
+router.get('/turfs/:id/nearby-customers', adminController.getNearbyCustomers);
 router.patch('/turfs/:id/approve', adminController.approveTurf);
 router.patch('/turfs/:id/reject', adminController.rejectTurf);
 router.delete('/turfs/:id', adminController.deleteTurf);
-
-router.post('/turfs/notify-nearby', adminController.notifyNearbyUsers);
-router.get('/turfs/notify-nearby', adminController.getNotificationCampaigns);
-router.delete('/turfs/notify-nearby/:id', adminController.deleteNotificationCampaign);
 
 router.get('/owners', adminController.getAllOwners);
 router.delete('/owners/:id', adminController.deleteOwner);
@@ -24,6 +27,7 @@ router.get('/sports-stats', adminController.getSportsStats);
 
 router.get('/customers', adminController.getAllCustomers);
 router.delete('/customers/:id', adminController.deleteCustomer);
+router.post('/customers/:id/notify', adminController.notifySingleUser);
 
 router.get('/bookings', adminController.getAllBookings);
 router.get('/payments', adminController.getAllPayments);

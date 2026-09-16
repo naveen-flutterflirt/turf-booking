@@ -456,7 +456,7 @@ const deleteFeedback = async (req, res) => {
 };
 
 const notifyNearbyUsers = async (req, res) => {
-  const { turf_id, radius_km, title, body } = req.body;
+  const { turf_id, radius_km, title, body, customer_ids } = req.body;
 
   if (!turf_id || !radius_km || !title || !body) {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -478,8 +478,8 @@ const notifyNearbyUsers = async (req, res) => {
     const radiusInMeters = parseFloat(radius_km) * 1000;
 
     // 2. Query users within radius using PostGIS (ONLY CUSTOMERS)
-    const query = `
-      SELECT id, fcm_token 
+    let query = `
+      SELECT id, name, fcm_token 
       FROM users 
       WHERE 
         role = 'CUSTOMER'
@@ -490,20 +490,35 @@ const notifyNearbyUsers = async (req, res) => {
           $3
         )
     `;
+    const queryParams = [turf.longitude, turf.latitude, radiusInMeters];
+
+    // If specific customers were selected, filter by those IDs
+    let isSpecificTargeting = false;
+    if (customer_ids && Array.isArray(customer_ids) && customer_ids.length > 0) {
+      isSpecificTargeting = true;
+      query += ` AND id = ANY($4::uuid[])`;
+      queryParams.push(customer_ids);
+    }
     
-    const result = await db.query(query, [turf.longitude, turf.latitude, radiusInMeters]);
+    const result = await db.query(query, queryParams);
     const eligibleUsers = result.rows;
 
     if (eligibleUsers.length === 0) {
       return res.status(200).json({ success: true, message: 'No eligible users found in this radius.' });
     }
 
+    // Determine targeted_names string
+    let targetedNamesStr = 'All nearby customers';
+    if (isSpecificTargeting) {
+      targetedNamesStr = eligibleUsers.map(u => u.name).join(', ');
+    }
+
     // 2.5 Save the campaign record in notification_campaigns table
     const insertCampaignQuery = `
-      INSERT INTO notification_campaigns (turf_id, title, message, radius_km, users_targeted)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO notification_campaigns (turf_id, title, message, radius_km, users_targeted, targeted_names)
+      VALUES ($1, $2, $3, $4, $5, $6)
     `;
-    await db.query(insertCampaignQuery, [turf_id, title, body, radius_km, eligibleUsers.length]);
+    await db.query(insertCampaignQuery, [turf_id, title, body, radius_km, eligibleUsers.length, targetedNamesStr]);
 
     // 3. Chunk tokens into arrays of 500
     const tokens = eligibleUsers.map(u => u.fcm_token);
@@ -524,6 +539,16 @@ const notifyNearbyUsers = async (req, res) => {
       });
     }
 
+    // 5. Also save personal notifications for each targeted user so they can see it in their app history
+    if (eligibleUsers.length > 0) {
+      const userIds = eligibleUsers.map(u => u.id);
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, type)
+         SELECT unnest($1::uuid[]), $2, $3, 'PROMO'`,
+        [userIds, title, body]
+      );
+    }
+
     return res.status(200).json({ 
       success: true, 
       message: `Notification queued for ${eligibleUsers.length} users in ${tokenChunks.length} batches.`
@@ -531,6 +556,48 @@ const notifyNearbyUsers = async (req, res) => {
 
   } catch (err) {
     console.error('Admin Notify Nearby Users Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+const getNearbyCustomers = async (req, res) => {
+  const { id } = req.params; // turf_id
+  const { radius_km } = req.query;
+
+  if (!radius_km) {
+    return res.status(400).json({ success: false, message: 'radius_km query parameter is required' });
+  }
+
+  try {
+    const turfResult = await db.query('SELECT latitude, longitude FROM turfs WHERE id = $1', [id]);
+    if (turfResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Turf not found' });
+    }
+
+    const turf = turfResult.rows[0];
+    if (!turf.latitude || !turf.longitude) {
+       return res.status(400).json({ success: false, message: 'Turf coordinates not set' });
+    }
+
+    const radiusInMeters = parseFloat(radius_km) * 1000;
+
+    const query = `
+      SELECT id, name, email, phone, fcm_token IS NOT NULL as has_app 
+      FROM users 
+      WHERE 
+        role = 'CUSTOMER'
+        AND ST_DWithin(
+          location, 
+          ST_MakePoint($1, $2)::geography, 
+          $3
+        )
+      ORDER BY name ASC
+    `;
+    
+    const result = await db.query(query, [turf.longitude, turf.latitude, radiusInMeters]);
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('Admin Get Nearby Customers Error:', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
@@ -567,6 +634,54 @@ const deleteNotificationCampaign = async (req, res) => {
   }
 };
 
+const notifySingleUser = async (req, res) => {
+  const { id } = req.params; // user_id
+  const { title, body } = req.body;
+
+  if (!title || !body) {
+    return res.status(400).json({ success: false, message: 'Missing title or body' });
+  }
+
+  try {
+    // 1. Check if user exists and get fcm_token
+    const userResult = await db.query('SELECT id, fcm_token FROM users WHERE id = $1', [id]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    
+    if (!user.fcm_token) {
+      return res.status(400).json({ success: false, message: 'User does not have an FCM token registered' });
+    }
+
+    // 2. Save notification history in the database for this specific user
+    const insertQuery = `
+      INSERT INTO notifications (user_id, title, message, type)
+      VALUES ($1, $2, $3, $4)
+    `;
+    await db.query(insertQuery, [user.id, title, body, 'PERSONAL']);
+
+    // 3. Push job to BullMQ
+    await notificationQueue.add('sendNotificationBatch', {
+      tokens: [user.fcm_token],
+      payload: { title, body },
+      adminId: req.user ? req.user.id : null,
+      turfId: null
+    });
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Notification queued successfully for the user.'
+    });
+
+  } catch (err) {
+    console.error('Admin Notify Single User Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   getAllTurfs,
   approveTurf,
@@ -585,5 +700,7 @@ module.exports = {
   deleteFeedback,
   notifyNearbyUsers,
   getNotificationCampaigns,
-  deleteNotificationCampaign
+  deleteNotificationCampaign,
+  notifySingleUser,
+  getNearbyCustomers
 };
