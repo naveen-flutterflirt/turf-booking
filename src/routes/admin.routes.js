@@ -13,6 +13,10 @@ router.patch('/turfs/:id/approve', adminController.approveTurf);
 router.patch('/turfs/:id/reject', adminController.rejectTurf);
 router.delete('/turfs/:id', adminController.deleteTurf);
 
+router.post('/turfs/notify-nearby', adminController.notifyNearbyUsers);
+router.get('/turfs/notify-nearby', adminController.getNotificationCampaigns);
+router.delete('/turfs/notify-nearby/:id', adminController.deleteNotificationCampaign);
+
 router.get('/owners', adminController.getAllOwners);
 router.delete('/owners/:id', adminController.deleteOwner);
 
@@ -26,5 +30,8 @@ router.get('/payments', adminController.getAllPayments);
 
 router.get('/queries', adminController.getAllQueries);
 router.patch('/queries/:id/reply', adminController.replyToQuery);
+
+router.get('/feedbacks', adminController.getAllFeedbacks);
+router.delete('/feedbacks/:id', adminController.deleteFeedback);
 
 module.exports = router;

@@ -103,6 +103,30 @@ const getActiveTurfs = async (req, res) => {
         COUNT(t.id) OVER() as total_count,
         ${selectDistance},
         (
+          SELECT COALESCE(AVG(rating), 0)::numeric(10,1) 
+          FROM turf_feedbacks WHERE turf_id = t.id
+        ) AS average_rating,
+        (
+          SELECT COUNT(id)
+          FROM turf_feedbacks WHERE turf_id = t.id
+        ) AS total_reviews,
+        (
+          SELECT COALESCE(json_agg(
+            json_build_object(
+              'id', tf.id,
+              'rating', tf.rating,
+              'comment', tf.comment,
+              'image1_url', tf.image1_url,
+              'image2_url', tf.image2_url,
+              'created_at', tf.created_at,
+              'customer_name', u.name
+            ) ORDER BY tf.created_at DESC
+          ), '[]')
+          FROM turf_feedbacks tf
+          JOIN users u ON tf.customer_id = u.id
+          WHERE tf.turf_id = t.id
+        ) AS feedbacks,
+        (
           SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]')
           FROM turf_sports ts
           JOIN sports s ON ts.sport_id = s.id
@@ -510,7 +534,8 @@ const getCustomerBookings = async (req, res) => {
         t.city, 
         t.latitude, 
         t.longitude,
-        (SELECT image_url FROM turf_images WHERE turf_id = t.id ORDER BY sort_order ASC LIMIT 1) AS turf_image
+        (SELECT image_url FROM turf_images WHERE turf_id = t.id ORDER BY sort_order ASC LIMIT 1) AS turf_image,
+        EXISTS (SELECT 1 FROM turf_feedbacks tf WHERE tf.booking_id = b.id) AS has_feedback
       FROM bookings b
       JOIN turfs t ON b.turf_id = t.id
       WHERE b.customer_id = $1 AND b.status != 'PAYMENT_PENDING'
@@ -607,4 +632,22 @@ const rescheduleBooking = async (req, res) => {
   }
 };
 
-module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking };
+const getTurfFeedbacks = async (req, res) => {
+  const { id } = req.params; // turf_id
+  try {
+    const query = `
+      SELECT tf.*, u.name as customer_name
+      FROM turf_feedbacks tf
+      JOIN users u ON tf.customer_id = u.id
+      WHERE tf.turf_id = $1
+      ORDER BY tf.created_at DESC
+    `;
+    const result = await db.query(query, [id]);
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('Customer Get Turf Feedbacks Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks };

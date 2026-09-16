@@ -25,7 +25,7 @@ const generatePresignedUrl = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only JPEG, PNG and WebP images are allowed' });
     }
 
-    const allowedFolders = ['turf-images', 'profile-images'];
+    const allowedFolders = ['turf-images', 'profile-images', 'turf-feedbacks'];
     if (!allowedFolders.includes(folder)) {
       return res.status(400).json({ success: false, message: 'Invalid folder' });
     }

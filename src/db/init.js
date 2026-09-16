@@ -2,6 +2,7 @@ const db = require('../config/db');
 
 const createTables = async () => {
   const query = `
+    DROP TABLE IF EXISTS turf_feedbacks CASCADE;
     DROP TABLE IF EXISTS turf_amenities CASCADE;
     DROP TABLE IF EXISTS amenities CASCADE;
     DROP TABLE IF EXISTS turf_sports CASCADE;
@@ -120,6 +121,20 @@ const createTables = async () => {
       payment_method VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE turf_feedbacks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      turf_id UUID NOT NULL REFERENCES turfs(id) ON DELETE CASCADE,
+      customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      rating INTEGER CHECK (rating >= 1 AND rating <= 5) NOT NULL,
+      comment TEXT,
+      image1_url TEXT,
+      image2_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(booking_id)
     );
 
     CREATE TABLE notifications (

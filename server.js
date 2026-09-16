@@ -10,6 +10,10 @@ const customerRoutes = require('./src/routes/customer.routes');
 const uploadRoutes = require('./src/routes/upload.routes');
 const webhookRoutes = require('./src/routes/webhook.routes');
 const notificationRoutes = require('./src/routes/notification.routes');
+const feedbackRoutes = require('./src/routes/feedback.routes');
+
+// Initialize background worker
+require('./src/utils/notificationWorker');
 
 const app = express();
 
@@ -43,6 +47,7 @@ app.get('/test', (req, res) => {
 app.use('/auth', authRoutes);
 app.use('/webhooks', webhookRoutes);
 app.use('/customer', customerRoutes);
+app.use('/customer/feedback', feedbackRoutes);
 app.use('/upload', uploadRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/owner', ownerRoutes);

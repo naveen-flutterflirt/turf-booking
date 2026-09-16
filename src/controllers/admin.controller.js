@@ -1,9 +1,9 @@
 const db = require('../config/db');
-
+const { notificationQueue } = require('../utils/notificationQueue');
 // Get all turfs (pending, active, rejected) for admin dashboard
 const getAllTurfs = async (req, res) => {
-  try {
-    const query = `
+	try {
+		const query = `
       SELECT 
         t.*,
         o.business_name,
@@ -28,69 +28,76 @@ const getAllTurfs = async (req, res) => {
       JOIN owners o ON t.owner_id = o.id
       ORDER BY t.created_at DESC
     `;
-    const turfResult = await db.query(query);
-
-    return res.status(200).json({
-      success: true,
-      data: turfResult.rows
-    });
-  } catch (err) {
-    console.error('Admin Get All Turfs Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+		const turfResult = await db.query(query);
+		return res.status(200).json({
+			success: true,
+			data: turfResult.rows
+		});
+	} catch (err) {
+		console.error('Admin Get All Turfs Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 // Approve a turf
 const approveTurf = async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await db.query(
-      `UPDATE turfs SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Turf not found' });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Turf approved and is now ACTIVE',
-      data: result.rows[0]
-    });
-  } catch (err) {
-    console.error('Admin Approve Turf Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+	const {
+		id
+	} = req.params;
+	try {
+		const result = await db.query(`UPDATE turfs SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+			[id]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				success: false,
+				message: 'Turf not found'
+			});
+		}
+		return res.status(200).json({
+			success: true,
+			message: 'Turf approved and is now ACTIVE',
+			data: result.rows[0]
+		});
+	} catch (err) {
+		console.error('Admin Approve Turf Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 // Reject a turf
 const rejectTurf = async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await db.query(
-      `UPDATE turfs SET status = 'REJECTED', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Turf not found' });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Turf has been REJECTED',
-      data: result.rows[0]
-    });
-  } catch (err) {
-    console.error('Admin Reject Turf Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+	const {
+		id
+	} = req.params;
+	try {
+		const result = await db.query(`UPDATE turfs SET status = 'REJECTED', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+			[id]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				success: false,
+				message: 'Turf not found'
+			});
+		}
+		return res.status(200).json({
+			success: true,
+			message: 'Turf has been REJECTED',
+			data: result.rows[0]
+		});
+	} catch (err) {
+		console.error('Admin Reject Turf Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const getAllOwners = async (req, res) => {
-  try {
-    const query = `
+	try {
+		const query = `
       SELECT 
         o.id AS owner_id,
         o.business_name,
@@ -106,64 +113,74 @@ const getAllOwners = async (req, res) => {
       GROUP BY o.id, u.id
       ORDER BY o.created_at DESC
     `;
-    const result = await db.query(query);
-
-    return res.status(200).json({
-      success: true,
-      data: result.rows
-    });
-  } catch (err) {
-    console.error('Admin Get All Owners Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+		const result = await db.query(query);
+		return res.status(200).json({
+			success: true,
+			data: result.rows
+		});
+	} catch (err) {
+		console.error('Admin Get All Owners Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const deleteOwner = async (req, res) => {
-  const { id } = req.params; // This is the owner_id
-
-  try {
-    // Find the user_id associated with this owner_id
-    const ownerResult = await db.query('SELECT user_id FROM owners WHERE id = $1', [id]);
-    
-    if (ownerResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Owner not found' });
-    }
-
-    const userId = ownerResult.rows[0].user_id;
-
-    // Delete the user. Because of ON DELETE CASCADE, this will delete the owner, turfs, etc.
-    await db.query(`DELETE FROM users WHERE id = $1 AND role = 'OWNER'`, [userId]);
-
-    return res.status(200).json({
-      success: true,
-      message: 'Owner and all associated data successfully deleted'
-    });
-  } catch (err) {
-    console.error('Admin Delete Owner Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+	const {
+		id
+	} = req.params; // This is the owner_id
+	try {
+		// Find the user_id associated with this owner_id
+		const ownerResult = await db.query('SELECT user_id FROM owners WHERE id = $1', [id]);
+		if (ownerResult.rows.length === 0) {
+			return res.status(404).json({
+				success: false,
+				message: 'Owner not found'
+			});
+		}
+		const userId = ownerResult.rows[0].user_id;
+		// Delete the user. Because of ON DELETE CASCADE, this will delete the owner, turfs, etc.
+		await db.query(`DELETE FROM users WHERE id = $1 AND role = 'OWNER'`, [userId]);
+		return res.status(200).json({
+			success: true,
+			message: 'Owner and all associated data successfully deleted'
+		});
+	} catch (err) {
+		console.error('Admin Delete Owner Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const deleteTurf = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const result = await db.query('DELETE FROM turfs WHERE id = $1 RETURNING id', [id]);
-    
-    if (result.rows.length === 0) {
-       return res.status(404).json({ success: false, message: 'Turf not found' });
-    }
-
-    return res.status(200).json({ success: true, message: 'Turf deleted successfully' });
-  } catch (err) {
-    console.error('Admin Delete Turf Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+	const {
+		id
+	} = req.params;
+	try {
+		const result = await db.query('DELETE FROM turfs WHERE id = $1 RETURNING id', [id]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				success: false,
+				message: 'Turf not found'
+			});
+		}
+		return res.status(200).json({
+			success: true,
+			message: 'Turf deleted successfully'
+		});
+	} catch (err) {
+		console.error('Admin Delete Turf Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const getSportsStats = async (req, res) => {
-  try {
-    const query = `
+	try {
+		const query = `
       SELECT 
         s.name as sport_name,
         COUNT(ts.turf_id) as turf_count,
@@ -179,55 +196,67 @@ const getSportsStats = async (req, res) => {
       GROUP BY s.id, s.name
       ORDER BY turf_count DESC
     `;
-    const result = await db.query(query);
-
-    return res.status(200).json({
-      success: true,
-      data: result.rows
-    });
-  } catch (err) {
-    console.error('Admin Get Sports Stats Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+		const result = await db.query(query);
+		return res.status(200).json({
+			success: true,
+			data: result.rows
+		});
+	} catch (err) {
+		console.error('Admin Get Sports Stats Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const getAllCustomers = async (req, res) => {
-  try {
-    const query = `
+	try {
+		const query = `
       SELECT id, name, email, phone, created_at
       FROM users
       WHERE role = 'CUSTOMER'
       ORDER BY created_at DESC
     `;
-    const result = await db.query(query);
-
-    return res.status(200).json({
-      success: true,
-      data: result.rows
-    });
-  } catch (err) {
-    console.error('Admin Get All Customers Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+		const result = await db.query(query);
+		return res.status(200).json({
+			success: true,
+			data: result.rows
+		});
+	} catch (err) {
+		console.error('Admin Get All Customers Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const deleteCustomer = async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await db.query(`DELETE FROM users WHERE id = $1 AND role = 'CUSTOMER' RETURNING id`, [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Customer not found' });
-    }
-    return res.status(200).json({ success: true, message: 'Customer deleted successfully' });
-  } catch (err) {
-    console.error('Admin Delete Customer Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+	const {
+		id
+	} = req.params;
+	try {
+		const result = await db.query(`DELETE FROM users WHERE id = $1 AND role = 'CUSTOMER' RETURNING id`, [id]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				success: false,
+				message: 'Customer not found'
+			});
+		}
+		return res.status(200).json({
+			success: true,
+			message: 'Customer deleted successfully'
+		});
+	} catch (err) {
+		console.error('Admin Delete Customer Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const getAllBookings = async (req, res) => {
-  try {
-    const query = `
+	try {
+		const query = `
       SELECT 
         b.id AS booking_id,
         b.booking_date,
@@ -250,21 +279,22 @@ const getAllBookings = async (req, res) => {
       JOIN users u ON b.customer_id = u.id
       ORDER BY b.booking_date DESC, b.start_time DESC
     `;
-    const result = await db.query(query);
-
-    return res.status(200).json({
-      success: true,
-      data: result.rows
-    });
-  } catch (err) {
-    console.error('Admin Get All Bookings Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+		const result = await db.query(query);
+		return res.status(200).json({
+			success: true,
+			data: result.rows
+		});
+	} catch (err) {
+		console.error('Admin Get All Bookings Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const getAllPayments = async (req, res) => {
-  try {
-    const query = `
+	try {
+		const query = `
       SELECT 
         b.id AS booking_id,
         b.total_price AS amount,
@@ -286,36 +316,36 @@ const getAllPayments = async (req, res) => {
       WHERE b.razorpay_order_id IS NOT NULL
       ORDER BY b.created_at DESC
     `;
-    const result = await db.query(query);
-
-    // Calculate some basic stats for the admin
-    let totalRevenue = 0;
-    let successfulPayments = 0;
-    result.rows.forEach(row => {
-      if (row.payment_status === 'CONFIRMED') {
-        totalRevenue += parseFloat(row.amount);
-        successfulPayments++;
-      }
-    });
-
-    return res.status(200).json({
-      success: true,
-      stats: {
-        total_revenue: totalRevenue,
-        successful_payments: successfulPayments,
-        total_transactions: result.rows.length
-      },
-      data: result.rows
-    });
-  } catch (err) {
-    console.error('Admin Get All Payments Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+		const result = await db.query(query);
+		// Calculate some basic stats for the admin
+		let totalRevenue = 0;
+		let successfulPayments = 0;
+		result.rows.forEach(row => {
+			if (row.payment_status === 'CONFIRMED') {
+				totalRevenue += parseFloat(row.amount);
+				successfulPayments++;
+			}
+		});
+		return res.status(200).json({
+			success: true,
+			stats: {
+				total_revenue: totalRevenue,
+				successful_payments: successfulPayments,
+				total_transactions: result.rows.length
+			},
+			data: result.rows
+		});
+	} catch (err) {
+		console.error('Admin Get All Payments Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const getAllQueries = async (req, res) => {
-  try {
-    const query = `
+	try {
+		const query = `
       SELECT 
         q.id,
         q.subject,
@@ -333,28 +363,35 @@ const getAllQueries = async (req, res) => {
       JOIN users u ON o.user_id = u.id
       ORDER BY q.created_at DESC
     `;
-    const result = await db.query(query);
-
-    return res.status(200).json({
-      success: true,
-      data: result.rows
-    });
-  } catch (err) {
-    console.error('Admin Get All Queries Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
+		const result = await db.query(query);
+		return res.status(200).json({
+			success: true,
+			data: result.rows
+		});
+	} catch (err) {
+		console.error('Admin Get All Queries Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
 };
-
 const replyToQuery = async (req, res) => {
-  const { id } = req.params;
-  const { admin_reply, status } = req.body;
-
-  if (!admin_reply) {
-    return res.status(400).json({ success: false, message: 'Admin reply is required' });
-  }
-
-  try {
-    const updateQuery = `
+	const {
+		id
+	} = req.params;
+	const {
+		admin_reply,
+		status
+	} = req.body;
+	if (!admin_reply) {
+		return res.status(400).json({
+			success: false,
+			message: 'Admin reply is required'
+		});
+	}
+	try {
+		const updateQuery = `
       UPDATE owner_queries 
       SET admin_reply = $1, 
           status = COALESCE($2, 'ANSWERED'),
@@ -362,21 +399,191 @@ const replyToQuery = async (req, res) => {
       WHERE id = $3 
       RETURNING *
     `;
-    const result = await db.query(updateQuery, [admin_reply, status || 'ANSWERED', id]);
+		const result = await db.query(updateQuery, [admin_reply, status || 'ANSWERED', id]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				success: false,
+				message: 'Query not found'
+			});
+		}
+		return res.status(200).json({
+			success: true,
+			message: 'Replied to query successfully',
+			data: result.rows[0]
+		});
+	} catch (err) {
+		console.error('Admin Reply To Query Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
+};
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Query not found' });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Replied to query successfully',
-      data: result.rows[0]
-    });
+const getAllFeedbacks = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        tf.*,
+        u.name as customer_name,
+        u.email as customer_email,
+        t.name as turf_name
+      FROM turf_feedbacks tf
+      JOIN users u ON tf.customer_id = u.id
+      JOIN turfs t ON tf.turf_id = t.id
+      ORDER BY tf.created_at DESC
+    `;
+    const result = await db.query(query);
+    return res.status(200).json({ success: true, data: result.rows });
   } catch (err) {
-    console.error('Admin Reply To Query Error:', err);
+    console.error('Admin Get All Feedbacks Error:', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
-module.exports = { getAllTurfs, approveTurf, rejectTurf, getAllOwners, deleteOwner, deleteTurf, getSportsStats, getAllCustomers, deleteCustomer, getAllBookings, getAllPayments, getAllQueries, replyToQuery };
+const deleteFeedback = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await db.query('DELETE FROM turf_feedbacks WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Feedback not found' });
+    }
+    return res.status(200).json({ success: true, message: 'Feedback deleted successfully' });
+  } catch (err) {
+    console.error('Admin Delete Feedback Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+const notifyNearbyUsers = async (req, res) => {
+  const { turf_id, radius_km, title, body } = req.body;
+
+  if (!turf_id || !radius_km || !title || !body) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  try {
+    // 1. Get Turf coordinates
+    const turfResult = await db.query('SELECT latitude, longitude FROM turfs WHERE id = $1', [turf_id]);
+    
+    if (turfResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Turf not found' });
+    }
+
+    const turf = turfResult.rows[0];
+    if (!turf.latitude || !turf.longitude) {
+       return res.status(400).json({ success: false, message: 'Turf coordinates not set' });
+    }
+
+    const radiusInMeters = parseFloat(radius_km) * 1000;
+
+    // 2. Query users within radius using PostGIS (ONLY CUSTOMERS)
+    const query = `
+      SELECT id, fcm_token 
+      FROM users 
+      WHERE 
+        role = 'CUSTOMER'
+        AND fcm_token IS NOT NULL 
+        AND ST_DWithin(
+          location, 
+          ST_MakePoint($1, $2)::geography, 
+          $3
+        )
+    `;
+    
+    const result = await db.query(query, [turf.longitude, turf.latitude, radiusInMeters]);
+    const eligibleUsers = result.rows;
+
+    if (eligibleUsers.length === 0) {
+      return res.status(200).json({ success: true, message: 'No eligible users found in this radius.' });
+    }
+
+    // 2.5 Save the campaign record in notification_campaigns table
+    const insertCampaignQuery = `
+      INSERT INTO notification_campaigns (turf_id, title, message, radius_km, users_targeted)
+      VALUES ($1, $2, $3, $4, $5)
+    `;
+    await db.query(insertCampaignQuery, [turf_id, title, body, radius_km, eligibleUsers.length]);
+
+    // 3. Chunk tokens into arrays of 500
+    const tokens = eligibleUsers.map(u => u.fcm_token);
+    const CHUNK_SIZE = 500;
+    const tokenChunks = [];
+    
+    for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
+      tokenChunks.push(tokens.slice(i, i + CHUNK_SIZE));
+    }
+
+    // 4. Push jobs to BullMQ
+    for (const chunk of tokenChunks) {
+      await notificationQueue.add('sendNotificationBatch', {
+        tokens: chunk,
+        payload: { title, body },
+        adminId: req.user ? req.user.id : null,
+        turfId: turf_id
+      });
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: `Notification queued for ${eligibleUsers.length} users in ${tokenChunks.length} batches.`
+    });
+
+  } catch (err) {
+    console.error('Admin Notify Nearby Users Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+const getNotificationCampaigns = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        nc.*,
+        t.name as turf_name
+      FROM notification_campaigns nc
+      JOIN turfs t ON nc.turf_id = t.id
+      ORDER BY nc.created_at DESC
+    `;
+    const result = await db.query(query);
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('Admin Get Notification Campaigns Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+const deleteNotificationCampaign = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await db.query('DELETE FROM notification_campaigns WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+    return res.status(200).json({ success: true, message: 'Campaign deleted successfully' });
+  } catch (err) {
+    console.error('Admin Delete Notification Campaign Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = {
+  getAllTurfs,
+  approveTurf,
+  rejectTurf,
+  getAllOwners,
+  deleteOwner,
+  deleteTurf,
+  getSportsStats,
+  getAllCustomers,
+  deleteCustomer,
+  getAllBookings,
+  getAllPayments,
+  getAllQueries,
+  replyToQuery,
+  getAllFeedbacks,
+  deleteFeedback,
+  notifyNearbyUsers,
+  getNotificationCampaigns,
+  deleteNotificationCampaign
+};
