@@ -12,8 +12,9 @@ const webhookRoutes = require('./src/routes/webhook.routes');
 const notificationRoutes = require('./src/routes/notification.routes');
 const feedbackRoutes = require('./src/routes/feedback.routes');
 
-// Initialize background worker
+// Initialize background workers
 require('./src/utils/notificationWorker');
+require('./src/utils/bookingCron');
 
 const app = express();
 

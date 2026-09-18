@@ -18,4 +18,7 @@ router.post('/bookings/verify-payment', authenticateUser, authorizeRole(['CUSTOM
 router.patch('/bookings/:id/cancel', authenticateUser, authorizeRole(['CUSTOMER']), customerController.cancelBooking);
 router.put('/bookings/:id/reschedule', authenticateUser, authorizeRole(['CUSTOMER']), customerController.rescheduleBooking);
 
+router.get('/notifications', authenticateUser, authorizeRole(['CUSTOMER']), customerController.getNotifications);
+router.patch('/notifications/:id/read', authenticateUser, authorizeRole(['CUSTOMER']), customerController.markNotificationRead);
+
 module.exports = router;

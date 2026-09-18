@@ -268,6 +268,7 @@ const getAllBookings = async (req, res) => {
         b.razorpay_payment_id,
         t.id AS turf_id,
         t.name AS turf_name,
+        s.name AS sport_name,
         o.business_name AS owner_business_name,
         u.id AS customer_id,
         u.name AS customer_name,
@@ -275,6 +276,7 @@ const getAllBookings = async (req, res) => {
         u.phone AS customer_phone
       FROM bookings b
       JOIN turfs t ON b.turf_id = t.id
+      JOIN sports s ON b.sport_id = s.id
       JOIN owners o ON t.owner_id = o.id
       JOIN users u ON b.customer_id = u.id
       ORDER BY b.booking_date DESC, b.start_time DESC

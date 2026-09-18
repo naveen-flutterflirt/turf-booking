@@ -418,12 +418,14 @@ const getOwnerBookings = async (req, res) => {
         b.razorpay_payment_id,
         t.id AS turf_id,
         t.name AS turf_name,
+        s.name AS sport_name,
         u.id AS customer_id,
         u.name AS customer_name,
         u.email AS customer_email,
         u.phone AS customer_phone
       FROM bookings b
       JOIN turfs t ON b.turf_id = t.id
+      JOIN sports s ON b.sport_id = s.id
       JOIN users u ON b.customer_id = u.id
       WHERE t.owner_id = $1
       ORDER BY b.booking_date DESC, b.start_time DESC
@@ -499,9 +501,9 @@ const getOwnerDashboardStats = async (req, res) => {
       occupancyRate = (bookedTurfs / totalActiveTurfs) * 100;
     }
 
-    // 4. Recent Top 4 Bookings (Deduplicated by turf, date, and time to hide multiple abandoned checkout attempts)
+    // 4. Recent Top 4 Bookings (Deduplicated by turf, sport, date, and time to hide multiple abandoned checkout attempts)
     const recentRes = await db.query(`
-      SELECT booking_id, booking_date, start_time, status, total_price, turf_name, customer_name
+      SELECT booking_id, booking_date, start_time, status, total_price, turf_name, sport_name, customer_name
       FROM (
         SELECT 
           b.id AS booking_id,
@@ -510,11 +512,13 @@ const getOwnerDashboardStats = async (req, res) => {
           b.status,
           b.total_price,
           t.name AS turf_name,
+          s.name AS sport_name,
           u.name AS customer_name,
           b.created_at,
-          ROW_NUMBER() OVER(PARTITION BY b.turf_id, b.booking_date, b.start_time ORDER BY b.created_at DESC) as rn
+          ROW_NUMBER() OVER(PARTITION BY b.turf_id, b.sport_id, b.booking_date, b.start_time ORDER BY b.created_at DESC) as rn
         FROM bookings b
         JOIN turfs t ON b.turf_id = t.id
+        JOIN sports s ON b.sport_id = s.id
         JOIN users u ON b.customer_id = u.id
         WHERE t.owner_id = $1
       ) sub

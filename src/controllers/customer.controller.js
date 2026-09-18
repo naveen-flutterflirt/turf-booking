@@ -221,10 +221,10 @@ const addHoursToTime = (timeStr, hours) => {
 
 const getTurfSlots = async (req, res) => {
   const { id } = req.params; // turf_id
-  const { date } = req.query; // YYYY-MM-DD
+  const { date, sport_id } = req.query; // YYYY-MM-DD, sport_id
 
-  if (!date) {
-    return res.status(400).json({ success: false, message: 'date query parameter is required (YYYY-MM-DD)' });
+  if (!date || !sport_id) {
+    return res.status(400).json({ success: false, message: 'date and sport_id query parameters are required' });
   }
 
   try {
@@ -235,10 +235,16 @@ const getTurfSlots = async (req, res) => {
     }
     const { opening_time, closing_time } = turfResult.rows[0];
 
-    // 2. Get existing CONFIRMED bookings for this turf on this date
+    // 1.5 Check if the sport is available at this turf
+    const turfSportCheck = await db.query('SELECT 1 FROM turf_sports WHERE turf_id = $1 AND sport_id = $2', [id, sport_id]);
+    if (turfSportCheck.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'The selected sport is not available at this turf' });
+    }
+
+    // 2. Get existing CONFIRMED bookings for this turf on this date and sport
     const bookingResult = await db.query(
-      `SELECT start_time, end_time FROM bookings WHERE turf_id = $1 AND booking_date = $2 AND status = 'CONFIRMED'`,
-      [id, date]
+      `SELECT start_time, end_time FROM bookings WHERE turf_id = $1 AND booking_date = $2 AND sport_id = $3 AND status = 'CONFIRMED'`,
+      [id, date, sport_id]
     );
     const existingBookings = bookingResult.rows;
 
@@ -301,10 +307,10 @@ const getTurfSlots = async (req, res) => {
 
 const createBooking = async (req, res) => {
   const userId = req.user.id;
-  const { turf_id, date, time_slots, is_full_day } = req.body;
+  const { turf_id, sport_id, date, time_slots, is_full_day } = req.body;
 
-  if (!turf_id || !date) {
-    return res.status(400).json({ success: false, message: 'turf_id and date are required' });
+  if (!turf_id || !sport_id || !date) {
+    return res.status(400).json({ success: false, message: 'turf_id, sport_id and date are required' });
   }
   if (!is_full_day && (!time_slots || !Array.isArray(time_slots) || time_slots.length === 0)) {
     return res.status(400).json({ success: false, message: 'Provide time_slots array or set is_full_day: true' });
@@ -361,8 +367,8 @@ const createBooking = async (req, res) => {
     // 3. Check for conflicts
     const slotStarts = requestedSlots.map(s => s.start_time);
     const conflictResult = await client.query(
-      `SELECT id FROM bookings WHERE turf_id = $1 AND booking_date = $2 AND status = 'CONFIRMED' AND start_time = ANY($3)`,
-      [turf_id, date, slotStarts]
+      `SELECT id FROM bookings WHERE turf_id = $1 AND sport_id = $2 AND booking_date = $3 AND status = 'CONFIRMED' AND start_time = ANY($4)`,
+      [turf_id, sport_id, date, slotStarts]
     );
 
     if (conflictResult.rows.length > 0) {
@@ -396,9 +402,9 @@ const createBooking = async (req, res) => {
     const bookingsCreated = [];
     for (const slot of requestedSlots) {
       const bookingRes = await client.query(
-        `INSERT INTO bookings (turf_id, customer_id, booking_date, start_time, end_time, status, total_price, razorpay_order_id)
-         VALUES ($1, $2, $3, $4, $5, 'PAYMENT_PENDING', $6, $7) RETURNING *`,
-        [turf_id, userId, date, slot.start_time, slot.end_time, turf.price_per_hour, order.id]
+        `INSERT INTO bookings (turf_id, sport_id, customer_id, booking_date, start_time, end_time, status, total_price, razorpay_order_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 'PAYMENT_PENDING', $7, $8) RETURNING *`,
+        [turf_id, sport_id, userId, date, slot.start_time, slot.end_time, turf.price_per_hour, order.id]
       );
       bookingsCreated.push(bookingRes.rows[0]);
     }
@@ -534,10 +540,12 @@ const getCustomerBookings = async (req, res) => {
         t.city, 
         t.latitude, 
         t.longitude,
+        s.name as sport_name,
         (SELECT image_url FROM turf_images WHERE turf_id = t.id ORDER BY sort_order ASC LIMIT 1) AS turf_image,
         EXISTS (SELECT 1 FROM turf_feedbacks tf WHERE tf.booking_id = b.id) AS has_feedback
       FROM bookings b
       JOIN turfs t ON b.turf_id = t.id
+      JOIN sports s ON b.sport_id = s.id
       WHERE b.customer_id = $1 AND b.status != 'PAYMENT_PENDING'
       ORDER BY b.booking_date DESC, b.start_time DESC
     `;
@@ -580,8 +588,8 @@ const rescheduleBooking = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Fetch the booking to verify ownership and get turf_id
-    const bookingResult = await client.query('SELECT turf_id, status FROM bookings WHERE id = $1 AND customer_id = $2 FOR UPDATE', [id, userId]);
+    // 1. Fetch the booking to verify ownership and get turf_id and sport_id
+    const bookingResult = await client.query('SELECT turf_id, sport_id, status, booking_date, start_time FROM bookings WHERE id = $1 AND customer_id = $2 FOR UPDATE', [id, userId]);
     
     if (bookingResult.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -594,12 +602,25 @@ const rescheduleBooking = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only CONFIRMED bookings can be rescheduled' });
     }
 
+    // Check if there are at least 2 hours left before the original booking starts
+    const originalBookingDate = new Date(booking.booking_date);
+    const [origSh, origSm, origSs] = booking.start_time.split(':').map(Number);
+    originalBookingDate.setHours(origSh, origSm, origSs || 0);
+
+    const twoHoursFromNow = new Date();
+    twoHoursFromNow.setHours(twoHoursFromNow.getHours() + 2);
+
+    if (originalBookingDate <= twoHoursFromNow) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Rescheduling is only allowed at least 2 hours before the match starts' });
+    }
+
     // 2. Check for conflicts
     const conflictResult = await client.query(
       `SELECT id FROM bookings 
-       WHERE turf_id = $1 AND booking_date = $2 AND status = 'CONFIRMED' AND id != $3
-       AND start_time < $4 AND end_time > $5`,
-      [booking.turf_id, date, id, formattedEndTime, formattedStartTime]
+       WHERE turf_id = $1 AND sport_id = $2 AND booking_date = $3 AND status = 'CONFIRMED' AND id != $4
+       AND start_time < $5 AND end_time > $6`,
+      [booking.turf_id, booking.sport_id, date, id, formattedEndTime, formattedStartTime]
     );
 
     if (conflictResult.rows.length > 0) {
@@ -650,4 +671,39 @@ const getTurfFeedbacks = async (req, res) => {
   }
 };
 
-module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks };
+const getNotifications = async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const query = `
+      SELECT id, title, message, type, is_read, created_at 
+      FROM notifications 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC
+    `;
+    const result = await db.query(query, [userId]);
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('Customer Get Notifications Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+const markNotificationRead = async (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  try {
+    const result = await db.query(
+      'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Notification not found' });
+    }
+    return res.status(200).json({ success: true, message: 'Notification marked as read', data: result.rows[0] });
+  } catch (err) {
+    console.error('Customer Mark Notification Read Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead };
