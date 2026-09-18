@@ -482,6 +482,7 @@ const notifyNearbyUsers = async (req, res) => {
 		customer_ids
 	} = req.body;
 	const hasSpecificCustomers = customer_ids && Array.isArray(customer_ids) && customer_ids.length > 0;
+	const parsedRadius = radius_km ? parseFloat(radius_km) : 0;
 
 	if (!turf_id || !title || !body) {
 		return res.status(400).json({
@@ -490,10 +491,10 @@ const notifyNearbyUsers = async (req, res) => {
 		});
 	}
 	
-	if (!radius_km && !hasSpecificCustomers) {
+	if (parsedRadius <= 0 && !hasSpecificCustomers) {
 		return res.status(400).json({
 			success: false,
-			message: 'You must provide either a radius_km or select specific customer_ids.'
+			message: 'You must provide either a valid radius ( > 0 ) or select specific customers.'
 		});
 	}
 
@@ -525,8 +526,8 @@ const notifyNearbyUsers = async (req, res) => {
 		let queryParams = [];
 		let paramIndex = 1;
 
-		if (radius_km) {
-			const radiusInMeters = parseFloat(radius_km) * 1000;
+		if (parsedRadius > 0) {
+			const radiusInMeters = parsedRadius * 1000;
 			query += ` AND ST_DWithin(location, ST_MakePoint($${paramIndex}, $${paramIndex+1})::geography, $${paramIndex+2})`;
 			queryParams.push(turf.longitude, turf.latitude, radiusInMeters);
 			paramIndex += 3;

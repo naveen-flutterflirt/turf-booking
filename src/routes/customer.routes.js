@@ -20,5 +20,6 @@ router.put('/bookings/:id/reschedule', authenticateUser, authorizeRole(['CUSTOME
 
 router.get('/notifications', authenticateUser, authorizeRole(['CUSTOMER']), customerController.getNotifications);
 router.patch('/notifications/:id/read', authenticateUser, authorizeRole(['CUSTOMER']), customerController.markNotificationRead);
+router.delete('/notifications/:id/delete', authenticateUser, authorizeRole(['CUSTOMER']), customerController.deleteNotification);
 
 module.exports = router;

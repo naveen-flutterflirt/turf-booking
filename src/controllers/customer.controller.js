@@ -706,4 +706,22 @@ const markNotificationRead = async (req, res) => {
   }
 };
 
-module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead };
+const deleteNotification = async (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  try {
+    const result = await db.query(
+      'DELETE FROM notifications WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Notification not found' });
+    }
+    return res.status(200).json({ success: true, message: 'Notification deleted successfully' });
+  } catch (err) {
+    console.error('Customer Delete Notification Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead, deleteNotification };
