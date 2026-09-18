@@ -12,6 +12,7 @@ router.get('/turfs/:id/feedbacks', customerController.getTurfFeedbacks);
 
 router.get('/profile', authenticateUser, authorizeRole(['CUSTOMER']), customerController.getProfile);
 router.put('/profile', authenticateUser, authorizeRole(['CUSTOMER']), customerController.updateProfile);
+router.put('/change-password', authenticateUser, authorizeRole(['CUSTOMER']), customerController.changePassword);
 router.get('/bookings', authenticateUser, authorizeRole(['CUSTOMER']), customerController.getCustomerBookings);
 router.post('/bookings', authenticateUser, authorizeRole(['CUSTOMER']), customerController.createBooking);
 router.post('/bookings/verify-payment', authenticateUser, authorizeRole(['CUSTOMER']), customerController.verifyPayment);

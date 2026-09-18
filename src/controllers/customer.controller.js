@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 // Razorpay initialized inside createBooking to prevent server crash if env keys are missing during deployment
 
@@ -724,4 +725,40 @@ const deleteNotification = async (req, res) => {
   }
 };
 
-module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead, deleteNotification };
+const changePassword = async (req, res) => {
+  const userId = req.user.id;
+  const { current_password, new_password } = req.body;
+
+  if (!current_password || !new_password) {
+    return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+  }
+
+  try {
+    const userResult = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    const isMatch = await bcrypt.compare(current_password, user.password_hash);
+
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Incorrect current password' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const new_password_hash = await bcrypt.hash(new_password, salt);
+
+    await db.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [new_password_hash, userId]
+    );
+
+    return res.status(200).json({ success: true, message: 'Password changed successfully' });
+  } catch (err) {
+    console.error('Customer Change Password Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead, deleteNotification, changePassword };
