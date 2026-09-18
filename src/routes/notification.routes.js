@@ -11,5 +11,6 @@ router.patch('/read-all', notificationController.markAllAsRead);
 router.patch('/:id/read', notificationController.markAsRead);
 router.delete('/clear-all', notificationController.clearAllNotifications);
 router.delete('/:id', notificationController.deleteNotification);
+router.patch('/fcm-token', notificationController.updateFcmToken);
 
 module.exports = router;

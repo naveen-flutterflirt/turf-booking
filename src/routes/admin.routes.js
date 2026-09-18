@@ -18,6 +18,7 @@ router.delete('/turfs/notify-nearby/:id', adminController.deleteNotificationCamp
 router.get('/turfs/:id/nearby-customers', adminController.getNearbyCustomers);
 router.patch('/turfs/:id/approve', adminController.approveTurf);
 router.patch('/turfs/:id/reject', adminController.rejectTurf);
+router.patch('/turfs/:id/feature', adminController.toggleFeaturedTurf);
 router.delete('/turfs/:id', adminController.deleteTurf);
 
 router.get('/owners', adminController.getAllOwners);

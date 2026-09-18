@@ -63,6 +63,7 @@ const createTables = async () => {
       closing_time TIME NOT NULL,
       status VARCHAR(50) DEFAULT 'PENDING',
       is_open BOOLEAN DEFAULT TRUE,
+      is_featured BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

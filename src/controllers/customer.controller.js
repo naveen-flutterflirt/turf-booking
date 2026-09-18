@@ -17,7 +17,7 @@ const getActiveTurfs = async (req, res) => {
 
     let selectDistance = "NULL AS distance_km";
     let whereClause = "WHERE t.status = 'ACTIVE' AND t.is_open = TRUE";
-    let orderByClause = "ORDER BY t.created_at DESC";
+    let orderByClause = "ORDER BY t.is_featured DESC, t.created_at DESC";
     const queryParams = [];
     let paramIndex = 1;
 

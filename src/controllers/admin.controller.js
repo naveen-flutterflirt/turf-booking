@@ -684,6 +684,35 @@ const notifySingleUser = async (req, res) => {
   }
 };
 
+const toggleFeaturedTurf = async (req, res) => {
+  const { id } = req.params;
+  const { is_featured } = req.body;
+  
+  if (is_featured === undefined) {
+    return res.status(400).json({ success: false, message: 'is_featured boolean is required' });
+  }
+
+  try {
+    const result = await db.query(
+      `UPDATE turfs SET is_featured = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
+      [is_featured, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Turf not found' });
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: `Turf ${is_featured ? 'marked as featured' : 'removed from featured'}`, 
+      data: result.rows[0] 
+    });
+  } catch (err) {
+    console.error('Admin Toggle Featured Turf Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   getAllTurfs,
   approveTurf,
@@ -704,5 +733,6 @@ module.exports = {
   getNotificationCampaigns,
   deleteNotificationCampaign,
   notifySingleUser,
-  getNearbyCustomers
+  getNearbyCustomers,
+  toggleFeaturedTurf
 };
