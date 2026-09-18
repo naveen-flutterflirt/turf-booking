@@ -527,6 +527,31 @@ const getOwnerDashboardStats = async (req, res) => {
       LIMIT 4
     `, [ownerId]);
 
+    // 5. Weekly Earnings Chart Data (Last 7 Days)
+    const weeklyEarningsRes = await db.query(`
+      WITH last_7_days AS (
+        SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day')::date AS date
+      )
+      SELECT 
+        trim(to_char(d.date, 'Dy')) AS label,
+        COALESCE(SUM(b.total_price), 0) AS value
+      FROM last_7_days d
+      LEFT JOIN (
+        SELECT b.booking_date, b.total_price 
+        FROM bookings b
+        JOIN turfs t ON b.turf_id = t.id
+        WHERE t.owner_id = $1 AND b.status = 'CONFIRMED'
+      ) b ON b.booking_date = d.date
+      GROUP BY d.date
+      ORDER BY d.date ASC
+    `, [ownerId]);
+
+    // Format value to numbers
+    const formattedWeeklyEarnings = weeklyEarningsRes.rows.map(row => ({
+      label: row.label,
+      value: parseFloat(row.value)
+    }));
+
     return res.status(200).json({
       success: true,
       data: {
@@ -534,7 +559,8 @@ const getOwnerDashboardStats = async (req, res) => {
         total_bookings: totalBookings,
         total_turfs: totalTurfs,
         occupancy_rate: Math.round(occupancyRate * 100) / 100, // Round to 2 decimal places
-        recent_bookings: recentRes.rows
+        recent_bookings: recentRes.rows,
+        weekly_earnings: formattedWeeklyEarnings
       }
     });
 
