@@ -12,6 +12,12 @@ router.get('/requests', authenticateUser, communityController.getRequests);
 // GET /community/chat/:roomId - Fetch chat history
 router.get('/chat/:roomId', authenticateUser, communityController.getChatHistory);
 
+// GET /community/chats - Fetch all chat rooms for the user
+router.get('/chats', authenticateUser, communityController.getMyChats);
+
+// GET /community/broadcasts/:broadcastId/room - Get room ID for a specific broadcast
+router.get('/broadcasts/:broadcastId/room', authenticateUser, communityController.getRoomByBroadcastId);
+
 // POST /community/broadcasts - Create a new broadcast
 router.post('/broadcasts', authenticateUser, communityController.createBroadcast);
 

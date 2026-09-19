@@ -243,11 +243,70 @@ const getChatHistory = async (req, res) => {
   }
 };
 
+// 7. Get All Chats for User
+const getMyChats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Fetch all rooms the user is a participant of, along with broadcast details
+    const query = `
+      SELECT 
+        cr.id as room_id,
+        cr.is_active,
+        cb.message as broadcast_message,
+        cb.sport_id,
+        s.name as sport_name,
+        u.name as host_name
+      FROM chat_rooms cr
+      JOIN chat_participants cp ON cr.id = cp.room_id
+      JOIN community_broadcasts cb ON cr.broadcast_id = cb.id
+      JOIN users u ON cb.host_id = u.id
+      LEFT JOIN sports s ON cb.sport_id = s.id
+      WHERE cp.user_id = $1
+      ORDER BY cr.created_at DESC
+    `;
+    const result = await db.query(query, [userId]);
+    
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error in getMyChats:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// 8. Get Room ID by Broadcast ID
+const getRoomByBroadcastId = async (req, res) => {
+  try {
+    const { broadcastId } = req.params;
+    const userId = req.user.id;
+
+    // Check if a room exists for this broadcast
+    const query = `
+      SELECT cr.id as room_id
+      FROM chat_rooms cr
+      JOIN chat_participants cp ON cr.id = cp.room_id
+      WHERE cr.broadcast_id = $1 AND cp.user_id = $2
+    `;
+    const result = await db.query(query, [broadcastId, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Room not found or you are not a participant' });
+    }
+
+    res.status(200).json({ success: true, roomId: result.rows[0].room_id });
+  } catch (error) {
+    console.error('Error in getRoomByBroadcastId:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
 module.exports = {
   createBroadcast,
   getFeed,
   requestToJoin,
   getRequests,
   acceptRequest,
-  getChatHistory
+  getChatHistory,
+  getMyChats,
+  getRoomByBroadcastId
 };
