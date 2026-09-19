@@ -185,7 +185,7 @@ const getOwnerTurfs = async (req, res) => {
 
 const updateTurf = async (req, res) => {
   const { id } = req.params;
-  const { name, description, address, city, state, pincode, latitude, longitude, price_per_hour, opening_time, closing_time, is_open, images } = req.body || {};
+  const { name, description, address, city, state, pincode, latitude, longitude, price_per_hour, opening_time, closing_time, is_open, images, sports, amenities } = req.body || {};
   const userId = req.user.id;
 
   try {
@@ -224,6 +224,61 @@ const updateTurf = async (req, res) => {
     
     const result = await db.query(updateQuery, updateValues);
     
+    // Update sports if provided
+    if (sports && Array.isArray(sports)) {
+      await db.query('DELETE FROM turf_sports WHERE turf_id = $1', [id]);
+      for (let sportItem of sports) {
+        if (typeof sportItem === 'object' && sportItem !== null && sportItem.id) {
+          sportItem = sportItem.id;
+        } else if (typeof sportItem === 'object' && sportItem !== null && sportItem.name) {
+          sportItem = sportItem.name;
+        }
+        let sportId = sportItem;
+        
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(sportItem)) {
+           const sportResult = await db.query('SELECT id FROM sports WHERE name ILIKE $1', [sportItem]);
+           if (sportResult.rows.length > 0) {
+             sportId = sportResult.rows[0].id;
+           } else {
+             continue; // Skip if sport doesn't exist
+           }
+        }
+        await db.query(
+          'INSERT INTO turf_sports (turf_id, sport_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [id, sportId]
+        );
+      }
+    }
+
+    // Update amenities if provided
+    if (amenities && Array.isArray(amenities)) {
+      await db.query('DELETE FROM turf_amenities WHERE turf_id = $1', [id]);
+      for (let amenityItem of amenities) {
+        if (typeof amenityItem === 'object' && amenityItem !== null && amenityItem.id) {
+          amenityItem = amenityItem.id;
+        } else if (typeof amenityItem === 'object' && amenityItem !== null && amenityItem.name) {
+          amenityItem = amenityItem.name;
+        }
+        let amenityId = amenityItem;
+        
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(amenityItem)) {
+           const amenityResult = await db.query('SELECT id FROM amenities WHERE name ILIKE $1', [amenityItem]);
+           if (amenityResult.rows.length > 0) {
+             amenityId = amenityResult.rows[0].id;
+           } else {
+             const newAmenity = await db.query('INSERT INTO amenities (name) VALUES ($1) RETURNING id', [amenityItem]);
+             amenityId = newAmenity.rows[0].id;
+           }
+        }
+        await db.query(
+          'INSERT INTO turf_amenities (turf_id, amenity_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [id, amenityId]
+        );
+      }
+    }
+
     // If new image URLs were provided, append them
     let parsedImages = images;
     if (typeof images === 'string') {
