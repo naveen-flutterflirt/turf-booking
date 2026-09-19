@@ -11,12 +11,19 @@ const uploadRoutes = require('./src/routes/upload.routes');
 const webhookRoutes = require('./src/routes/webhook.routes');
 const notificationRoutes = require('./src/routes/notification.routes');
 const feedbackRoutes = require('./src/routes/feedback.routes');
+const communityRoutes = require('./src/routes/community.routes');
+const { initSocket } = require('./src/config/socket');
+const http = require('http');
 
 // Initialize background workers
 require('./src/utils/notificationWorker');
 require('./src/utils/bookingCron');
 
 const app = express();
+const httpServer = http.createServer(app);
+
+// Initialize Socket.io
+initSocket(httpServer);
 
 app.use(cors());
 app.use(compression());
@@ -54,8 +61,9 @@ app.use('/notifications', notificationRoutes);
 app.use('/owner', ownerRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/community', communityRoutes);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
