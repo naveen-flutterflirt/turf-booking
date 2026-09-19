@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 
 // Get only ACTIVE turfs for the customer app/website
 const getActiveTurfs = async (req, res) => {
-  const { lat, lng, radius, min_price, max_price, sport, date, page, limit } = req.query;
+  const { lat, lng, radius, min_price, max_price, sport, date, page, limit, is_featured } = req.query;
 
   try {
     // Pagination is optional: if page/limit are not provided, return all turfs
@@ -68,12 +68,14 @@ const getActiveTurfs = async (req, res) => {
     }
 
     // 2. Sport Filter
+    let sportSubqueryFilter = '';
     if (sport) {
       whereClause += ` AND EXISTS (
         SELECT 1 FROM turf_sports ts
         JOIN sports s ON ts.sport_id = s.id
         WHERE ts.turf_id = t.id AND s.name ILIKE $${paramIndex}
       )`;
+      sportSubqueryFilter = ` AND s.name ILIKE $${paramIndex}`;
       queryParams.push(`%${sport}%`);
       paramIndex += 1;
     }
@@ -89,6 +91,11 @@ const getActiveTurfs = async (req, res) => {
       )`;
       queryParams.push(date);
       paramIndex += 1;
+    }
+
+    // 4. Featured Filter
+    if (is_featured === 'true') {
+      whereClause += ` AND t.is_featured = TRUE`;
     }
 
     // Build LIMIT/OFFSET clause only when pagination is requested
@@ -131,7 +138,7 @@ const getActiveTurfs = async (req, res) => {
           SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]')
           FROM turf_sports ts
           JOIN sports s ON ts.sport_id = s.id
-          WHERE ts.turf_id = t.id
+          WHERE ts.turf_id = t.id${sportSubqueryFilter}
         ) AS sports,
         (
           SELECT COALESCE(json_agg(json_build_object('id', a.id, 'name', a.name)), '[]')
