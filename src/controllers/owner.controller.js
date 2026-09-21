@@ -575,7 +575,7 @@ const getOwnerDashboardStats = async (req, res) => {
         JOIN turfs t ON b.turf_id = t.id
         JOIN sports s ON b.sport_id = s.id
         JOIN users u ON b.customer_id = u.id
-        WHERE t.owner_id = $1
+        WHERE t.owner_id = $1 AND b.status = 'COMPLETED'
       ) sub
       WHERE rn = 1
       ORDER BY created_at DESC
