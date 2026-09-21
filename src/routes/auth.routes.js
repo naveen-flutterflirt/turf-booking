@@ -12,4 +12,10 @@ router.post('/resend-verification', authController.resendVerificationCode);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 
+// Google Auth Routes
+router.post('/customer/google', authController.googleLoginCustomer);
+router.post('/customer/google-signup', authController.googleSignupCustomer);
+router.post('/owner/google', authController.googleLoginOwner);
+router.post('/owner/google-signup', authController.googleSignupOwner);
+
 module.exports = router;
