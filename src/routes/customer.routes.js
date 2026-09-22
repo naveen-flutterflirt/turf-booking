@@ -10,6 +10,8 @@ router.get('/turfs', customerController.getActiveTurfs);
 router.get('/turfs/:id/slots', customerController.getTurfSlots);
 router.get('/turfs/:id/feedbacks', customerController.getTurfFeedbacks);
 
+router.get('/promos', customerController.getActivePromos);
+
 router.get('/profile', authenticateUser, authorizeRole(['CUSTOMER']), customerController.getProfile);
 router.put('/profile', authenticateUser, authorizeRole(['CUSTOMER']), customerController.updateProfile);
 router.put('/change-password', authenticateUser, authorizeRole(['CUSTOMER']), customerController.changePassword);

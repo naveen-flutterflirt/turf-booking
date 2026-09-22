@@ -32,4 +32,7 @@ router.get('/queries', adminController.getAllQueries);
 router.patch('/queries/:id/reply', adminController.replyToQuery);
 router.get('/feedbacks', adminController.getAllFeedbacks);
 router.delete('/feedbacks/:id', adminController.deleteFeedback);
+router.post('/promos', adminController.addPromo);
+router.get('/promos', adminController.getAllPromos);
+router.delete('/promos/:id', adminController.deletePromo);
 module.exports = router;
