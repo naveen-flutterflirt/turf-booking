@@ -767,5 +767,14 @@ const changePassword = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
+const getActivePromos = async (req, res) => {
+  try {
+    const result = await db.query("SELECT * FROM promos WHERE status = 'ACTIVE' ORDER BY created_at DESC");
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('Customer Get Promos Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
 
-module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead, deleteNotification, changePassword };
+module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead, deleteNotification, changePassword,getActivePromos };
