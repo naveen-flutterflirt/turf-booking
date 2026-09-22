@@ -791,6 +791,44 @@ const toggleFeaturedTurf = async (req, res) => {
 		});
 	}
 };
+const addPromo = async (req, res) => {
+	const { image_url, status } = req.body;
+	if (!image_url) {
+		return res.status(400).json({ success: false, message: 'image_url is required' });
+	}
+	try {
+		const result = await db.query(
+			'INSERT INTO promos (image_url, status) VALUES ($1, $2) RETURNING *',
+			[image_url, status || 'ACTIVE']
+		);
+		return res.status(201).json({ success: true, message: 'Promo created successfully', data: result.rows[0] });
+	} catch (err) {
+		console.error('Admin Add Promo Error:', err);
+		return res.status(500).json({ success: false, message: 'Internal server error' });
+	}
+};
+const deletePromo = async (req, res) => {
+	const { id } = req.params;
+	try {
+		const result = await db.query('DELETE FROM promos WHERE id = $1 RETURNING id', [id]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ success: false, message: 'Promo not found' });
+		}
+		return res.status(200).json({ success: true, message: 'Promo deleted successfully' });
+	} catch (err) {
+		console.error('Admin Delete Promo Error:', err);
+		return res.status(500).json({ success: false, message: 'Internal server error' });
+	}
+};
+const getAllPromos = async (req, res) => {
+	try {
+		const result = await db.query('SELECT * FROM promos ORDER BY created_at DESC');
+		return res.status(200).json({ success: true, data: result.rows });
+	} catch (err) {
+		console.error('Admin Get All Promos Error:', err);
+		return res.status(500).json({ success: false, message: 'Internal server error' });
+	}
+};
 module.exports = {
 	getAllTurfs,
 	approveTurf,
@@ -812,5 +850,8 @@ module.exports = {
 	deleteNotificationCampaign,
 	notifySingleUser,
 	getNearbyCustomers,
-	toggleFeaturedTurf
+	toggleFeaturedTurf,
+	addPromo,
+	deletePromo,
+	getAllPromos
 };
