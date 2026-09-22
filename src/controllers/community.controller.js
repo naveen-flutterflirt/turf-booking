@@ -333,6 +333,7 @@ const getMyChats = async (req, res) => {
 		const query = `
       SELECT 
         cr.id as room_id,
+        cr.name as room_name,
         cr.is_active,
         cb.message as broadcast_message,
         cb.sport_id,
@@ -392,14 +393,174 @@ const getRoomByBroadcastId = async (req, res) => {
 		});
 	}
 };
+
+// 9. Get Chat Room Members
+const getChatMembers = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const userId = req.user.id; // user making the request
+
+    // Verify user is part of the room
+    const participantCheck = await db.query(
+      `SELECT 1 FROM chat_participants WHERE room_id = $1 AND user_id = $2`,
+      [roomId, userId]
+    );
+
+    if (participantCheck.rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'Access denied to this chat room' });
+    }
+
+    const query = `
+      SELECT cp.user_id, u.name, cp.joined_at
+      FROM chat_participants cp
+      JOIN users u ON cp.user_id = u.id
+      WHERE cp.room_id = $1
+      ORDER BY cp.joined_at ASC
+    `;
+    const result = await db.query(query, [roomId]);
+
+    res.status(200).json({ 
+      success: true, 
+      count: result.rows.length, 
+      data: result.rows 
+    });
+  } catch (error) {
+    console.error('Error in getChatMembers:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// 10. Update Chat Room Name (Host Only)
+const updateChatRoomName = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { name } = req.body;
+    const hostId = req.user.id;
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'New name is required' });
+    }
+
+    // Verify the requester is the host of the broadcast
+    const hostCheck = await db.query(
+      `SELECT cb.id FROM chat_rooms cr
+       JOIN community_broadcasts cb ON cr.broadcast_id = cb.id
+       WHERE cr.id = $1 AND cb.host_id = $2`,
+      [roomId, hostId]
+    );
+
+    if (hostCheck.rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'Only the host can update the group name' });
+    }
+
+    const updateQuery = `
+      UPDATE chat_rooms 
+      SET name = $1 
+      WHERE id = $2 
+      RETURNING *
+    `;
+    const result = await db.query(updateQuery, [name, roomId]);
+
+    res.status(200).json({ success: true, message: 'Group name updated successfully', data: result.rows[0] });
+  } catch (error) {
+    console.error('Error in updateChatRoomName:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// 11. Remove Chat Member (Host Only)
+const removeChatMember = async (req, res) => {
+  try {
+    const { roomId, userId } = req.params;
+    const hostId = req.user.id;
+
+    // A host cannot remove themselves using this API
+    if (userId === hostId) {
+      return res.status(400).json({ success: false, message: 'Host cannot remove themselves from the group' });
+    }
+
+    // Verify the requester is the host of the broadcast
+    const hostCheck = await db.query(
+      `SELECT cb.id FROM chat_rooms cr
+       JOIN community_broadcasts cb ON cr.broadcast_id = cb.id
+       WHERE cr.id = $1 AND cb.host_id = $2`,
+      [roomId, hostId]
+    );
+
+    if (hostCheck.rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'Only the host can remove members' });
+    }
+
+    // Remove the user
+    const deleteQuery = `
+      DELETE FROM chat_participants 
+      WHERE room_id = $1 AND user_id = $2 
+      RETURNING *
+    `;
+    const result = await db.query(deleteQuery, [roomId, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User is not a member of this chat room' });
+    }
+
+    // Also update the join_requests status so they can potentially request again, or leave it as ACCEPTED to block?
+    // Let's set it to 'REMOVED' or just delete it so they can request again if needed.
+    const broadcastId = hostCheck.rows[0].id;
+    await db.query(
+      `DELETE FROM join_requests WHERE broadcast_id = $1 AND user_id = $2`,
+      [broadcastId, userId]
+    );
+
+    // Notify the removed user
+    const io = getIO();
+    io.to(`user_${userId}`).emit('removed_from_chat', { roomId, broadcastId });
+
+    res.status(200).json({ success: true, message: 'Member removed successfully' });
+  } catch (error) {
+    console.error('Error in removeChatMember:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// 12. Delete Broadcast (Host Only)
+const deleteBroadcast = async (req, res) => {
+  try {
+    const { broadcastId } = req.params;
+    const hostId = req.user.id;
+
+    // Delete the broadcast if the user is the host
+    const deleteQuery = `
+      DELETE FROM community_broadcasts 
+      WHERE id = $1 AND host_id = $2 
+      RETURNING id
+    `;
+    const result = await db.query(deleteQuery, [broadcastId, hostId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Broadcast not found or you are not authorized to delete it' });
+    }
+
+    // Since we have ON DELETE CASCADE on join_requests and chat_rooms, 
+    // those related records will be automatically deleted by the database.
+
+    res.status(200).json({ success: true, message: 'Broadcast deleted successfully' });
+  } catch (error) {
+    console.error('Error in deleteBroadcast:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
 module.exports = {
-	createBroadcast,
-	getFeed,
-	getMyBroadcasts,
-	requestToJoin,
-	getRequests,
-	acceptRequest,
-	getChatHistory,
-	getMyChats,
-	getRoomByBroadcastId
+  createBroadcast,
+  getFeed,
+  requestToJoin,
+  getRequests,
+  acceptRequest,
+  getChatHistory,
+  getMyChats,
+  getRoomByBroadcastId,
+  getChatMembers,
+  updateChatRoomName,
+  removeChatMember,
+  deleteBroadcast
 };

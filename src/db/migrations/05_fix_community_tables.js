@@ -36,6 +36,7 @@ const fixCommunityTables = async () => {
     CREATE TABLE IF NOT EXISTS chat_rooms (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       broadcast_id UUID NOT NULL REFERENCES community_broadcasts(id) ON DELETE CASCADE,
+      name VARCHAR(255) DEFAULT 'Broadcast Chat',
       is_active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
