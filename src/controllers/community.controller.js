@@ -553,6 +553,7 @@ const deleteBroadcast = async (req, res) => {
 module.exports = {
   createBroadcast,
   getFeed,
+  getMyBroadcasts,
   requestToJoin,
   getRequests,
   acceptRequest,
