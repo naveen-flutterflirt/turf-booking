@@ -26,8 +26,8 @@ const createBroadcast = async (req, res) => {
 		}
 		const insertQuery = `
       INSERT INTO community_broadcasts 
-        (host_id, message, sport_id, play_date, start_time, end_time, players_needed, skill_level)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (host_id, message, sport_id, play_date, start_time, end_time, players_needed)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *;
     `;
 		const values = [
@@ -37,8 +37,7 @@ const createBroadcast = async (req, res) => {
 			play_date || null,
 			start_time || null,
 			end_time || null,
-			players_needed || null,
-			skill_level || null
+			players_needed || null
 		];
 		const result = await db.query(insertQuery, values);
 		res.status(201).json({
