@@ -758,4 +758,78 @@ const getQueries = async (req, res) => {
   }
 };
 
-module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage, getOwnerBookings, getOwnerDashboardStats, getOwnerProfile, updateOwnerProfile, submitQuery, getQueries };
+const addPayoutDetails = async (req, res) => {
+  const userId = req.user.id;
+  const { accountHolderName, bankAccountNumber, confirmBankAccountNumber, ifsc } = req.body;
+
+  if (!accountHolderName || !bankAccountNumber || !confirmBankAccountNumber || !ifsc) {
+    return res.status(400).json({ success: false, message: 'All payout fields are required' });
+  }
+
+  if (bankAccountNumber !== confirmBankAccountNumber) {
+    return res.status(400).json({ success: false, message: 'Bank account numbers do not match' });
+  }
+
+  try {
+    const query = `
+      UPDATE owners
+      SET account_holder_name = $1,
+          bank_account_number = $2,
+          ifsc = $3,
+          payout_details_completed = TRUE,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $4
+      RETURNING *
+    `;
+    const result = await db.query(query, [accountHolderName, bankAccountNumber, ifsc, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Owner profile not found' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Payout details updated successfully' });
+  } catch (err) {
+    console.error('Add Payout Details Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+const getPayoutDetails = async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const query = `
+      SELECT account_holder_name, bank_account_number, ifsc, bank_verification_status, payout_details_completed
+      FROM owners
+      WHERE user_id = $1
+    `;
+    const result = await db.query(query, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Owner profile not found' });
+    }
+
+    const owner = result.rows[0];
+    let maskedBank = null;
+    if (owner.bank_account_number) {
+      const len = owner.bank_account_number.length;
+      maskedBank = len > 4 ? 'X'.repeat(len - 4) + owner.bank_account_number.slice(-4) : 'XXXX';
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        accountHolderName: owner.account_holder_name,
+        bankAccountNumber: maskedBank,
+        ifsc: owner.ifsc,
+        status: owner.bank_verification_status,
+        isCompleted: owner.payout_details_completed
+      }
+    });
+  } catch (err) {
+    console.error('Get Payout Details Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage, getOwnerBookings, getOwnerDashboardStats, getOwnerProfile, updateOwnerProfile, submitQuery, getQueries, addPayoutDetails, getPayoutDetails };

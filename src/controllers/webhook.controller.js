@@ -1,8 +1,7 @@
-const crypto = require('crypto');
 const db = require('../config/db');
+const razorpayService = require('../services/razorpay.service');
 
 const razorpayWebhook = async (req, res) => {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
   const signature = req.headers['x-razorpay-signature'];
 
   if (!signature || !req.rawBody) {
@@ -11,12 +10,9 @@ const razorpayWebhook = async (req, res) => {
 
   try {
     // 1. Verify Signature
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(req.rawBody) // MUST use the raw buffer, not the parsed JSON string
-      .digest('hex');
+    const isValid = razorpayService.verifyWebhookSignature(req.rawBody, signature);
 
-    if (expectedSignature !== signature) {
+    if (!isValid) {
       console.warn('Webhook signature mismatch!');
       return res.status(400).json({ success: false, message: 'Invalid signature' });
     }
@@ -53,6 +49,24 @@ const razorpayWebhook = async (req, res) => {
       if (result.rows.length > 0) {
         console.log(`Webhook successfully updated ${result.rows.length} bookings for order ${orderId} to CONFIRMED!`);
         
+        // --- TRIGGER ASYNC PAYOUT ---
+        // Push each confirmed booking to the payout queue
+        for (const row of result.rows) {
+          try {
+            const { payoutQueue } = require('../utils/payoutQueue');
+            await payoutQueue.add('processPayout', { bookingId: row.id }, {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 5000 // 5 seconds
+              }
+            });
+            console.log(`Added booking ${row.id} to PayoutQueue`);
+          } catch (qErr) {
+            console.error(`Failed to add booking ${row.id} to PayoutQueue:`, qErr);
+          }
+        }
+
         // --- NOTIFICATION TRIGGER ---
         // Notify Owner
         try {

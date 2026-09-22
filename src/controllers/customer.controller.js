@@ -1,9 +1,5 @@
 const db = require('../config/db');
-const Razorpay = require('razorpay');
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
-
-// Razorpay initialized inside createBooking to prevent server crash if env keys are missing during deployment
+const razorpayService = require('../services/razorpay.service');
 
 // Get only ACTIVE turfs for the customer app/website
 const getActiveTurfs = async (req, res) => {
@@ -388,23 +384,14 @@ const createBooking = async (req, res) => {
     const totalAmount = requestedSlots.length * parseFloat(turf.price_per_hour);
 
     // 5. Create Razorpay Order
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    let order;
+    try {
+      const shortReceipt = `rcpt_${userId.substring(0,8)}_${Date.now()}`;
+      order = await razorpayService.createOrder(totalAmount, shortReceipt);
+    } catch (error) {
        await client.query('ROLLBACK');
-       return res.status(500).json({ success: false, message: 'Payment gateway is not configured on this server.' });
+       return res.status(500).json({ success: false, message: error.message || 'Payment gateway error.' });
     }
-    const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
-    });
-
-    // Razorpay receipt length must be <= 40 chars. We use a short random string + timestamp
-    const shortReceipt = `rcpt_${userId.substring(0,8)}_${Date.now()}`;
-    const options = {
-      amount: totalAmount * 100, // Razorpay works in paise
-      currency: "INR",
-      receipt: shortReceipt
-    };
-    const order = await razorpay.orders.create(options);
 
     // 6. Insert bookings as PAYMENT_PENDING with the order ID
     const bookingsCreated = [];
@@ -474,29 +461,16 @@ const verifyPayment = async (req, res) => {
 
   try {
     // 1. Cryptographic Signature Verification
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest('hex');
-
-    if (expectedSignature !== razorpay_signature) {
+    const isValidSignature = razorpayService.verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    if (!isValidSignature) {
       return res.status(400).json({ success: false, message: 'Invalid payment signature' });
     }
 
     // 2. Fetch Payment Method from Razorpay
     let paymentMethod = 'unknown';
-    try {
-      if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-        const razorpay = new Razorpay({
-          key_id: process.env.RAZORPAY_KEY_ID,
-          key_secret: process.env.RAZORPAY_KEY_SECRET,
-        });
-        const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
-        paymentMethod = paymentDetails.method || 'unknown';
-      }
-    } catch (apiErr) {
-      console.warn('Could not fetch payment details from Razorpay API:', apiErr);
+    const paymentDetails = await razorpayService.fetchPaymentDetails(razorpay_payment_id);
+    if (paymentDetails && paymentDetails.method) {
+      paymentMethod = paymentDetails.method;
     }
 
     // 3. Update all bookings linked to this order to CONFIRMED
@@ -768,4 +742,14 @@ const changePassword = async (req, res) => {
   }
 };
 
-module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead, deleteNotification, changePassword };
+const getActivePromos = async (req, res) => {
+  try {
+    const result = await db.query("SELECT * FROM promos WHERE status = 'ACTIVE' ORDER BY created_at DESC");
+    return res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('Customer Get Promos Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = { getActiveTurfs, getProfile, updateProfile, getTurfSlots, createBooking, cancelBooking, verifyPayment, getCustomerBookings, rescheduleBooking, getTurfFeedbacks, getNotifications, markNotificationRead, deleteNotification, changePassword, getActivePromos };
