@@ -82,6 +82,34 @@ const getFeed = async (req, res) => {
 		});
 	}
 };
+
+// 2.5 Fetch My Broadcasts
+const getMyBroadcasts = async (req, res) => {
+	try {
+		const hostId = req.user.id;
+		const query = `
+      SELECT 
+        cb.*, 
+        s.name as sport_name,
+        (SELECT COUNT(id) FROM join_requests WHERE broadcast_id = cb.id AND status = 'PENDING') as pending_requests
+      FROM community_broadcasts cb
+      LEFT JOIN sports s ON cb.sport_id = s.id
+      WHERE cb.host_id = $1
+      ORDER BY cb.created_at DESC;
+    `;
+		const result = await db.query(query, [hostId]);
+		res.status(200).json({
+			success: true,
+			data: result.rows
+		});
+	} catch (error) {
+		console.error('Error in getMyBroadcasts:', error);
+		res.status(500).json({
+			success: false,
+			message: 'Internal Server Error'
+		});
+	}
+};
 // 3. Request to Join
 const requestToJoin = async (req, res) => {
 	try {
@@ -368,6 +396,7 @@ const getRoomByBroadcastId = async (req, res) => {
 module.exports = {
 	createBroadcast,
 	getFeed,
+	getMyBroadcasts,
 	requestToJoin,
 	getRequests,
 	acceptRequest,
