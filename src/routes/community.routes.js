@@ -6,6 +6,9 @@ const { authenticateUser } = require('../middlewares/auth.middleware');
 // GET /community/feed - Fetch all active broadcasts
 router.get('/feed', authenticateUser, communityController.getFeed);
 
+// GET /community/my-broadcasts - Fetch broadcasts created by the current user
+router.get('/my-broadcasts', authenticateUser, communityController.getMyBroadcasts);
+
 // GET /community/requests - Fetch pending requests for host
 router.get('/requests', authenticateUser, communityController.getRequests);
 
