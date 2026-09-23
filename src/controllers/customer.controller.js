@@ -10,11 +10,10 @@ const getActiveTurfs = async (req, res) => {
   const { lat, lng, radius, min_price, max_price, sport, date, page, limit, is_featured } = req.query;
 
   try {
-    // Pagination is optional: if page/limit are not provided, return all turfs
-    const isPaginated = page !== undefined || limit !== undefined;
-    const parsedLimit = isPaginated ? (parseInt(limit, 10) || 10) : null;
-    const parsedPage = isPaginated ? (parseInt(page, 10) || 1) : null;
-    const offset = isPaginated ? (parsedPage - 1) * parsedLimit : null;
+    // Always enforce pagination to protect the database
+    const parsedLimit = limit !== undefined ? (parseInt(limit, 10) || 10) : 10;
+    const parsedPage = page !== undefined ? (parseInt(page, 10) || 1) : 1;
+    const offset = (parsedPage - 1) * parsedLimit;
 
     let selectDistance = "NULL AS distance_km";
     let whereClause = "WHERE t.status = 'ACTIVE' AND t.is_open = TRUE";
@@ -98,63 +97,69 @@ const getActiveTurfs = async (req, res) => {
       whereClause += ` AND t.is_featured = TRUE`;
     }
 
-    // Build LIMIT/OFFSET clause only when pagination is requested
-    let paginationClause = '';
-    if (isPaginated) {
-      paginationClause = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-      queryParams.push(parsedLimit, offset);
-    }
+    // Always attach LIMIT and OFFSET for pagination
+    let paginationClause = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(parsedLimit, offset);
 
     const query = `
+      WITH filtered_turfs AS (
+        SELECT t.*,
+               COUNT(t.id) OVER() as total_count,
+               ${selectDistance}
+        FROM turfs t
+        ${whereClause}
+        ${orderByClause}
+        ${paginationClause}
+      )
       SELECT 
-        t.*,
-        COUNT(t.id) OVER() as total_count,
-        ${selectDistance},
-        (
-          SELECT COALESCE(AVG(rating), 0)::numeric(10,1) 
-          FROM turf_feedbacks WHERE turf_id = t.id
-        ) AS average_rating,
-        (
-          SELECT COUNT(id)
-          FROM turf_feedbacks WHERE turf_id = t.id
-        ) AS total_reviews,
-        (
-          SELECT COALESCE(json_agg(
-            json_build_object(
-              'id', tf.id,
-              'rating', tf.rating,
-              'comment', tf.comment,
-              'image1_url', tf.image1_url,
-              'image2_url', tf.image2_url,
-              'created_at', tf.created_at,
-              'customer_name', u.name
-            ) ORDER BY tf.created_at DESC
-          ), '[]')
-          FROM turf_feedbacks tf
-          JOIN users u ON tf.customer_id = u.id
-          WHERE tf.turf_id = t.id
-        ) AS feedbacks,
-        (
-          SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]')
-          FROM turf_sports ts
-          JOIN sports s ON ts.sport_id = s.id
-          WHERE ts.turf_id = t.id${sportSubqueryFilter}
-        ) AS sports,
-        (
-          SELECT COALESCE(json_agg(json_build_object('id', a.id, 'name', a.name)), '[]')
-          FROM turf_amenities ta
-          JOIN amenities a ON ta.amenity_id = a.id
-          WHERE ta.turf_id = t.id
-        ) AS amenities,
-        (
-          SELECT COALESCE(json_agg(json_build_object('id', ti.id, 'image_url', ti.image_url, 's3_key', ti.s3_key, 'sort_order', ti.sort_order) ORDER BY ti.sort_order ASC), '[]')
-          FROM turf_images ti
-          WHERE ti.turf_id = t.id
-        ) AS images
-      FROM turfs t
-      ${whereClause}
-      ${orderByClause}
-      ${paginationClause}
+        ft.*,
+        COALESCE(tf_agg.average_rating, 0)::numeric(10,1) AS average_rating,
+        COALESCE(tf_agg.total_reviews, 0) AS total_reviews,
+        COALESCE(tf_agg.feedbacks, '[]') AS feedbacks,
+        COALESCE(s_agg.sports, '[]') AS sports,
+        COALESCE(a_agg.amenities, '[]') AS amenities,
+        COALESCE(i_agg.images, '[]') AS images
+      FROM filtered_turfs ft
+      LEFT JOIN (
+        SELECT 
+          tf.turf_id,
+          AVG(tf.rating) AS average_rating,
+          COUNT(tf.id) AS total_reviews,
+          json_agg(json_build_object(
+            'id', tf.id,
+            'rating', tf.rating,
+            'comment', tf.comment,
+            'image1_url', tf.image1_url,
+            'image2_url', tf.image2_url,
+            'created_at', tf.created_at,
+            'customer_name', u.name
+          ) ORDER BY tf.created_at DESC) AS feedbacks
+        FROM turf_feedbacks tf
+        JOIN users u ON tf.customer_id = u.id
+        WHERE tf.turf_id IN (SELECT id FROM filtered_turfs)
+        GROUP BY tf.turf_id
+      ) tf_agg ON ft.id = tf_agg.turf_id
+      LEFT JOIN (
+        SELECT ts.turf_id, json_agg(json_build_object('id', s.id, 'name', s.name)) AS sports
+        FROM turf_sports ts
+        JOIN sports s ON ts.sport_id = s.id
+        WHERE ts.turf_id IN (SELECT id FROM filtered_turfs) ${sportSubqueryFilter}
+        GROUP BY ts.turf_id
+      ) s_agg ON ft.id = s_agg.turf_id
+      LEFT JOIN (
+        SELECT ta.turf_id, json_agg(json_build_object('id', a.id, 'name', a.name)) AS amenities
+        FROM turf_amenities ta
+        JOIN amenities a ON ta.amenity_id = a.id
+        WHERE ta.turf_id IN (SELECT id FROM filtered_turfs)
+        GROUP BY ta.turf_id
+      ) a_agg ON ft.id = a_agg.turf_id
+      LEFT JOIN (
+        SELECT ti.turf_id, json_agg(json_build_object('id', ti.id, 'image_url', ti.image_url, 's3_key', ti.s3_key, 'sort_order', ti.sort_order) ORDER BY ti.sort_order ASC) AS images
+        FROM turf_images ti
+        WHERE ti.turf_id IN (SELECT id FROM filtered_turfs)
+        GROUP BY ti.turf_id
+      ) i_agg ON ft.id = i_agg.turf_id
+      ${orderByClause.replace(/t\./g, 'ft.')}
     `;
     
     const turfResult = await db.query(query, queryParams);
@@ -173,8 +178,8 @@ const getActiveTurfs = async (req, res) => {
       meta: {
         total,
         page: parsedPage || 1,
-        limit: parsedLimit || total,
-        total_pages: isPaginated ? Math.ceil(total / parsedLimit) : 1
+        limit: parsedLimit,
+        total_pages: Math.ceil(total / parsedLimit) || 1
       }
     });
   } catch (err) {
