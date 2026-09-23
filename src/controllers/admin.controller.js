@@ -823,7 +823,11 @@ const deletePromo = async (req, res) => {
 const getAllPromos = async (req, res) => {
 	try {
 		const result = await db.query('SELECT * FROM promos ORDER BY created_at DESC');
-		return res.status(200).json({ success: true, data: result.rows });
+		return res.status(200).json({ 
+			success: true, 
+			total_promos: result.rows.length,
+			data: result.rows 
+		});
 	} catch (err) {
 		console.error('Admin Get All Promos Error:', err);
 		return res.status(500).json({ success: false, message: 'Internal server error' });
