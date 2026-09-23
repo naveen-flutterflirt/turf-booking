@@ -34,5 +34,6 @@ router.get('/feedbacks', adminController.getAllFeedbacks);
 router.delete('/feedbacks/:id', adminController.deleteFeedback);
 router.post('/promos', adminController.addPromo);
 router.get('/promos', adminController.getAllPromos);
+router.patch('/promos/:id/status', adminController.updatePromoStatus);
 router.delete('/promos/:id', adminController.deletePromo);
 module.exports = router;
