@@ -44,8 +44,9 @@ const createTurf = async (req, res) => {
             if (sportResult.rows.length > 0) {
               sportId = sportResult.rows[0].id;
             } else {
-              // If the sport doesn't exist in the database, skip it
-              continue; 
+              // Automatically add the new custom sport to the database
+              const newSport = await client.query('INSERT INTO sports (name) VALUES ($1) RETURNING id', [sportItem]);
+              sportId = newSport.rows[0].id;
             }
          }
 
@@ -241,7 +242,9 @@ const updateTurf = async (req, res) => {
            if (sportResult.rows.length > 0) {
              sportId = sportResult.rows[0].id;
            } else {
-             continue; // Skip if sport doesn't exist
+             // Automatically add the new custom sport to the database
+             const newSport = await db.query('INSERT INTO sports (name) VALUES ($1) RETURNING id', [sportItem]);
+             sportId = newSport.rows[0].id;
            }
         }
         await db.query(
