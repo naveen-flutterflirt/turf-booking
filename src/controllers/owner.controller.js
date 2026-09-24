@@ -534,10 +534,10 @@ const getOwnerDashboardStats = async (req, res) => {
     const bookingsRes = await db.query(`
       SELECT 
         COUNT(b.id) AS total_bookings,
-        SUM(CASE WHEN b.status = 'CONFIRMED' THEN b.total_price ELSE 0 END) AS total_earnings
+        SUM(CASE WHEN b.status IN ('CONFIRMED', 'COMPLETED') THEN b.total_price ELSE 0 END) AS total_earnings
       FROM bookings b
       JOIN turfs t ON b.turf_id = t.id
-      WHERE t.owner_id = $1
+      WHERE t.owner_id = $1 AND b.status != 'PAYMENT_PENDING'
     `, [ownerId]);
     
     const totalBookings = parseInt(bookingsRes.rows[0].total_bookings) || 0;
@@ -550,7 +550,10 @@ const getOwnerDashboardStats = async (req, res) => {
         SELECT COUNT(DISTINCT b.turf_id) AS booked_turfs
         FROM bookings b
         JOIN turfs t ON b.turf_id = t.id
-        WHERE t.owner_id = $1 AND b.status = 'CONFIRMED'
+        WHERE t.owner_id = $1 
+          AND b.status = 'CONFIRMED'
+          AND b.booking_date = CURRENT_DATE
+          AND CURRENT_TIME::time BETWEEN b.start_time AND b.end_time
       `, [ownerId]);
       const bookedTurfs = parseInt(bookedTurfsRes.rows[0].booked_turfs) || 0;
       occupancyRate = (bookedTurfs / totalActiveTurfs) * 100;
@@ -575,7 +578,7 @@ const getOwnerDashboardStats = async (req, res) => {
         JOIN turfs t ON b.turf_id = t.id
         JOIN sports s ON b.sport_id = s.id
         JOIN users u ON b.customer_id = u.id
-        WHERE t.owner_id = $1 AND b.status = 'COMPLETED'
+        WHERE t.owner_id = $1 AND b.status != 'PAYMENT_PENDING'
       ) sub
       WHERE rn = 1
       ORDER BY created_at DESC
@@ -595,7 +598,7 @@ const getOwnerDashboardStats = async (req, res) => {
         SELECT b.booking_date, b.total_price 
         FROM bookings b
         JOIN turfs t ON b.turf_id = t.id
-        WHERE t.owner_id = $1 AND b.status = 'CONFIRMED'
+        WHERE t.owner_id = $1 AND b.status IN ('CONFIRMED', 'COMPLETED')
       ) b ON b.booking_date = d.date
       GROUP BY d.date
       ORDER BY d.date ASC
@@ -760,13 +763,38 @@ const getQueries = async (req, res) => {
 
 const getAccountDetails = async (req, res) => {
   const userId = req.user.id;
+  const { owner_id } = req.query;
+
   try {
-    const query = `
-      SELECT account_name, account_number, ifsc_code, bank_name
-      FROM owners
-      WHERE user_id = $1
-    `;
-    const result = await db.query(query, [userId]);
+    let query;
+    let params;
+
+    if (req.user.role === 'ADMIN' && owner_id) {
+      query = `
+        SELECT account_name, account_number, ifsc_code, bank_name
+        FROM owners
+        WHERE id = $1
+      `;
+      params = [owner_id];
+    } else if (req.user.role === 'ADMIN' && !owner_id) {
+      query = `
+        SELECT o.id as owner_id, o.account_name, o.account_number, o.ifsc_code, o.bank_name, u.name, u.email
+        FROM owners o
+        JOIN users u ON o.user_id = u.id
+      `;
+      params = [];
+      const result = await db.query(query, params);
+      return res.status(200).json({ success: true, data: result.rows });
+    } else {
+      query = `
+        SELECT account_name, account_number, ifsc_code, bank_name
+        FROM owners
+        WHERE user_id = $1
+      `;
+      params = [userId];
+    }
+
+    const result = await db.query(query, params);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Owner profile not found' });
     }
