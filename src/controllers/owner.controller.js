@@ -551,7 +551,7 @@ const getOwnerDashboardStats = async (req, res) => {
         FROM bookings b
         JOIN turfs t ON b.turf_id = t.id
         WHERE t.owner_id = $1 
-          AND b.status IN ('CONFIRMED', 'COMPLETED')
+          AND b.status = 'CONFIRMED'
           AND b.booking_date = CURRENT_DATE
       `, [ownerId]);
       const bookedTurfs = parseInt(bookedTurfsRes.rows[0].booked_turfs) || 0;
