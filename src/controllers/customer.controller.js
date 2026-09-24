@@ -865,6 +865,16 @@ const getActivePromos = async (req, res) => {
 		});
 	}
 };
+const getAppSettings = async (req, res) => {
+  const db = require('../config/db');
+  try {
+    const result = await db.query('SELECT latest_android_version, latest_ios_version, force_update, normal_update, update_message, play_store_url, app_store_url FROM app_settings LIMIT 1');
+    return res.status(200).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('Get App Settings Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
 module.exports = {
 	getActiveTurfs,
 	getProfile,
@@ -880,5 +890,6 @@ module.exports = {
 	markNotificationRead,
 	deleteNotification,
 	changePassword,
-	getActivePromos
+	getActivePromos,
+  getAppSettings
 };

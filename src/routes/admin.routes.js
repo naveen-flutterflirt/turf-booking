@@ -36,4 +36,8 @@ router.post('/promos', adminController.addPromo);
 router.get('/promos', adminController.getAllPromos);
 router.patch('/promos/:id/status', adminController.updatePromoStatus);
 router.delete('/promos/:id', adminController.deletePromo);
+
+router.get('/app-settings', adminController.getAppSettings);
+router.put('/app-settings', adminController.updateAppSettings);
+
 module.exports = router;

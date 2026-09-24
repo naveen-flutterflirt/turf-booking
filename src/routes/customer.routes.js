@@ -11,6 +11,7 @@ router.get('/turfs/:id/slots', customerController.getTurfSlots);
 router.get('/turfs/:id/feedbacks', customerController.getTurfFeedbacks);
 
 router.get('/promos', customerController.getActivePromos);
+router.get('/app-settings', customerController.getAppSettings);
 
 router.get('/profile', authenticateUser, authorizeRole(['CUSTOMER']), customerController.getProfile);
 router.put('/profile', authenticateUser, authorizeRole(['CUSTOMER']), customerController.updateProfile);

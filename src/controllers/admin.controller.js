@@ -851,6 +851,40 @@ const updatePromoStatus = async (req, res) => {
 		return res.status(500).json({ success: false, message: 'Internal server error' });
 	}
 };
+
+const getAppSettings = async (req, res) => {
+	try {
+		const result = await db.query('SELECT * FROM app_settings LIMIT 1');
+		return res.status(200).json({ success: true, data: result.rows[0] });
+	} catch (err) {
+		console.error('Admin Get App Settings Error:', err);
+		return res.status(500).json({ success: false, message: 'Internal server error' });
+	}
+};
+
+const updateAppSettings = async (req, res) => {
+	const { latest_android_version, latest_ios_version, force_update, normal_update, update_message, play_store_url, app_store_url } = req.body;
+	
+	try {
+		const result = await db.query(
+			`UPDATE app_settings 
+			 SET latest_android_version = COALESCE($1, latest_android_version),
+			     latest_ios_version = COALESCE($2, latest_ios_version),
+			     force_update = COALESCE($3, force_update),
+			     normal_update = COALESCE($4, normal_update),
+			     update_message = COALESCE($5, update_message),
+			     play_store_url = COALESCE($6, play_store_url),
+			     app_store_url = COALESCE($7, app_store_url),
+			     updated_at = CURRENT_TIMESTAMP
+			 RETURNING *`,
+			[latest_android_version, latest_ios_version, force_update, normal_update, update_message, play_store_url, app_store_url]
+		);
+		return res.status(200).json({ success: true, message: 'App settings updated successfully', data: result.rows[0] });
+	} catch (err) {
+		console.error('Admin Update App Settings Error:', err);
+		return res.status(500).json({ success: false, message: 'Internal server error' });
+	}
+};
 module.exports = {
 	getAllTurfs,
 	approveTurf,
@@ -876,5 +910,7 @@ module.exports = {
 	addPromo,
 	deletePromo,
 	getAllPromos,
-	updatePromoStatus
+	updatePromoStatus,
+  getAppSettings,
+  updateAppSettings
 };
