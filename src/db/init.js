@@ -32,6 +32,10 @@ const createTables = async () => {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       business_name VARCHAR(255) NOT NULL,
+      account_name VARCHAR(255),
+      account_number VARCHAR(255),
+      ifsc_code VARCHAR(50),
+      bank_name VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

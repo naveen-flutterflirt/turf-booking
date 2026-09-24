@@ -758,4 +758,48 @@ const getQueries = async (req, res) => {
   }
 };
 
-module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage, getOwnerBookings, getOwnerDashboardStats, getOwnerProfile, updateOwnerProfile, submitQuery, getQueries };
+const getAccountDetails = async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const query = `
+      SELECT account_name, account_number, ifsc_code, bank_name
+      FROM owners
+      WHERE user_id = $1
+    `;
+    const result = await db.query(query, [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Owner profile not found' });
+    }
+    return res.status(200).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('Get Account Details Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+const updateAccountDetails = async (req, res) => {
+  const userId = req.user.id;
+  const { account_name, account_number, ifsc_code, bank_name } = req.body;
+
+  try {
+    const ownerResult = await db.query('SELECT id FROM owners WHERE user_id = $1', [userId]);
+    if (ownerResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Owner profile not found' });
+    }
+
+    const query = `
+      UPDATE owners 
+      SET account_name = $1, account_number = $2, ifsc_code = $3, bank_name = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $5
+      RETURNING account_name, account_number, ifsc_code, bank_name
+    `;
+    const result = await db.query(query, [account_name, account_number, ifsc_code, bank_name, userId]);
+
+    return res.status(200).json({ success: true, message: 'Account details updated successfully', data: result.rows[0] });
+  } catch (err) {
+    console.error('Update Account Details Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage, getOwnerBookings, getOwnerDashboardStats, getOwnerProfile, updateOwnerProfile, submitQuery, getQueries, getAccountDetails, updateAccountDetails };
