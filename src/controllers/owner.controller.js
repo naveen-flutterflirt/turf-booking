@@ -551,9 +551,8 @@ const getOwnerDashboardStats = async (req, res) => {
         FROM bookings b
         JOIN turfs t ON b.turf_id = t.id
         WHERE t.owner_id = $1 
-          AND b.status = 'CONFIRMED'
+          AND b.status IN ('CONFIRMED', 'COMPLETED')
           AND b.booking_date = CURRENT_DATE
-          AND CURRENT_TIME::time BETWEEN b.start_time AND b.end_time
       `, [ownerId]);
       const bookedTurfs = parseInt(bookedTurfsRes.rows[0].booked_turfs) || 0;
       occupancyRate = (bookedTurfs / totalActiveTurfs) * 100;
