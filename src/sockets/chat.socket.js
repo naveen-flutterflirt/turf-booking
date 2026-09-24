@@ -22,11 +22,16 @@ const setupChatSockets = (io, socket) => {
     if (!roomId || !senderId || !message) return;
 
     try {
-      // 1. Save message to PostgreSQL database
+      // 1. Save message to PostgreSQL database and fetch sender's name
       const insertQuery = `
-        INSERT INTO chat_messages (room_id, sender_id, message)
-        VALUES ($1, $2, $3)
-        RETURNING id, room_id, sender_id, message, created_at;
+        WITH inserted_message AS (
+          INSERT INTO chat_messages (room_id, sender_id, message)
+          VALUES ($1, $2, $3)
+          RETURNING id, room_id, sender_id, message, created_at
+        )
+        SELECT im.*, u.name as sender_name
+        FROM inserted_message im
+        JOIN users u ON im.sender_id = u.id;
       `;
       const result = await db.query(insertQuery, [roomId, senderId, message]);
       const savedMessage = result.rows[0];

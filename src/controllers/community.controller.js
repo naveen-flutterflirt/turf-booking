@@ -461,6 +461,39 @@ const updateChatRoomName = async (req, res) => {
     `;
     const result = await db.query(updateQuery, [name, roomId]);
 
+    // Notification Logic
+    // Notify all participants (except host who changed it)
+    const participantsQuery = `
+      SELECT u.id, u.fcm_token 
+      FROM chat_participants cp
+      JOIN users u ON cp.user_id = u.id
+      WHERE cp.room_id = $1 AND cp.user_id != $2
+    `;
+    const participantResult = await db.query(participantsQuery, [roomId, hostId]);
+    
+    const io = getIO();
+    const tokens = [];
+    
+    participantResult.rows.forEach(user => {
+      // Real-time socket notification
+      io.to(`user_${user.id}`).emit('group_name_updated', {
+        roomId,
+        newName: name
+      });
+      if (user.fcm_token) tokens.push(user.fcm_token);
+    });
+
+    if (tokens.length > 0) {
+      await notificationQueue.add('group-name-updated', {
+        tokens: tokens,
+        payload: {
+          title: 'Group Name Changed',
+          body: `A community group name was changed to "${name}".`,
+          data: { type: 'group_name_updated', roomId: String(roomId) }
+        }
+      });
+    }
+
     res.status(200).json({ success: true, message: 'Group name updated successfully', data: result.rows[0] });
   } catch (error) {
     console.error('Error in updateChatRoomName:', error);
@@ -511,9 +544,22 @@ const removeChatMember = async (req, res) => {
       [broadcastId, userId]
     );
 
-    // Notify the removed user
+    // Notify the removed user via socket
     const io = getIO();
     io.to(`user_${userId}`).emit('removed_from_chat', { roomId, broadcastId });
+
+    // Notify via FCM push notification
+    const userResult = await db.query(`SELECT fcm_token FROM users WHERE id = $1`, [userId]);
+    if (userResult.rows.length > 0 && userResult.rows[0].fcm_token) {
+      await notificationQueue.add('member-removed-notification', {
+        tokens: [userResult.rows[0].fcm_token],
+        payload: {
+          title: 'Removed from Community',
+          body: 'You have been removed from the community group by the host.',
+          data: { type: 'removed_from_chat', broadcastId: String(broadcastId) }
+        }
+      });
+    }
 
     res.status(200).json({ success: true, message: 'Member removed successfully' });
   } catch (error) {
@@ -528,6 +574,16 @@ const deleteBroadcast = async (req, res) => {
     const { broadcastId } = req.params;
     const hostId = req.user.id;
 
+    // Fetch participants before deleting to notify them
+    const participantsQuery = `
+      SELECT u.id, u.fcm_token 
+      FROM chat_rooms cr
+      JOIN chat_participants cp ON cr.id = cp.room_id
+      JOIN users u ON cp.user_id = u.id
+      WHERE cr.broadcast_id = $1 AND cp.user_id != $2
+    `;
+    const participantResult = await db.query(participantsQuery, [broadcastId, hostId]);
+
     // Delete the broadcast if the user is the host
     const deleteQuery = `
       DELETE FROM community_broadcasts 
@@ -538,6 +594,26 @@ const deleteBroadcast = async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Broadcast not found or you are not authorized to delete it' });
+    }
+
+    // Notify users
+    const io = getIO();
+    const tokens = [];
+
+    participantResult.rows.forEach(user => {
+      io.to(`user_${user.id}`).emit('community_deleted', { broadcastId });
+      if (user.fcm_token) tokens.push(user.fcm_token);
+    });
+
+    if (tokens.length > 0) {
+      await notificationQueue.add('community-deleted-notification', {
+        tokens: tokens,
+        payload: {
+          title: 'Community Deleted',
+          body: 'A community you joined has been deleted by the host.',
+          data: { type: 'community_deleted', broadcastId: String(broadcastId) }
+        }
+      });
     }
 
     // Since we have ON DELETE CASCADE on join_requests and chat_rooms, 
