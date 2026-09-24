@@ -137,26 +137,41 @@ const requestToJoin = async (req, res) => {
       WHERE cb.id = $1
     `;
 		const broadcastResult = await db.query(broadcastQuery, [broadcastId]);
+        
+        // Fetch requester's name
+        const userQuery = await db.query(`SELECT name FROM users WHERE id = $1`, [userId]);
+        const requesterName = userQuery.rows[0]?.name || 'Someone';
+
 		if (broadcastResult.rows.length > 0) {
 			const {
 				host_id,
 				fcm_token
 			} = broadcastResult.rows[0];
+            const requestId = result.rows[0].id;
+
 			// Real-time socket notification
 			getIO().to(`user_${host_id}`).emit('new_join_request', {
 				broadcastId,
-				userId
+				userId,
+                requesterName,
+                requestId
 			});
+
+            // Save to Notification DB API
+            await db.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)`, 
+                [host_id, 'New Join Request!', `${requesterName} requested to join your community.`, 'new_join_request']);
+
 			// Offline push notification fallback via BullMQ
 			if (fcm_token) {
 				await notificationQueue.add('join-request-notification', {
 					tokens: [fcm_token],
 					payload: {
 						title: 'New Join Request!',
-						body: 'Someone requested to join your broadcast.',
+						body: `${requesterName} requested to join your community.`,
 						data: {
-							type: 'join_request',
-							broadcastId: String(broadcastId)
+							type: 'new_join_request',
+							broadcastId: String(broadcastId),
+                            requestId: String(requestId)
 						}
 					}
 				});
@@ -260,8 +275,12 @@ const acceptRequest = async (req, res) => {
 			broadcastId: broadcast_id,
 			roomId
 		});
-		// 5. Trigger BullMQ FCM notification
+		// 5. Trigger BullMQ FCM notification and Save to DB
 		const userResult = await db.query(`SELECT fcm_token FROM users WHERE id = $1`, [user_id]);
+		
+		await db.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)`, 
+			[user_id, 'Request Accepted!', 'Your request to join the match was accepted.', 'request_accepted']);
+
 		if (userResult.rows.length > 0 && userResult.rows[0].fcm_token) {
 			await notificationQueue.add('request-accepted-notification', {
 				tokens: [userResult.rows[0].fcm_token],
@@ -481,6 +500,10 @@ const updateChatRoomName = async (req, res) => {
         newName: name
       });
       if (user.fcm_token) tokens.push(user.fcm_token);
+      
+      // Save to Notification DB API
+      db.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)`, 
+        [user.id, 'Group Name Changed', `A community group name was changed to "${name}".`, 'group_name_updated']).catch(err => console.error(err));
     });
 
     if (tokens.length > 0) {
@@ -548,7 +571,10 @@ const removeChatMember = async (req, res) => {
     const io = getIO();
     io.to(`user_${userId}`).emit('removed_from_chat', { roomId, broadcastId });
 
-    // Notify via FCM push notification
+    // Notify via FCM push notification and Save to DB
+    await db.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)`, 
+      [userId, 'Removed from Community', 'You have been removed from the community group by the host.', 'removed_from_chat']);
+
     const userResult = await db.query(`SELECT fcm_token FROM users WHERE id = $1`, [userId]);
     if (userResult.rows.length > 0 && userResult.rows[0].fcm_token) {
       await notificationQueue.add('member-removed-notification', {
@@ -603,6 +629,10 @@ const deleteBroadcast = async (req, res) => {
     participantResult.rows.forEach(user => {
       io.to(`user_${user.id}`).emit('community_deleted', { broadcastId });
       if (user.fcm_token) tokens.push(user.fcm_token);
+
+      // Save to Notification DB API
+      db.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)`, 
+        [user.id, 'Community Deleted', 'A community you joined has been deleted by the host.', 'community_deleted']).catch(err => console.error(err));
     });
 
     if (tokens.length > 0) {

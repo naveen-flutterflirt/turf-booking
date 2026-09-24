@@ -51,6 +51,12 @@ const setupChatSockets = (io, socket) => {
       
       const tokens = participantResult.rows.map(row => row.fcm_token).filter(t => t);
       
+      // Save to Notification DB API
+      participantResult.rows.forEach(user => {
+        db.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)`, 
+          [user.id, 'New Message', message.length > 50 ? message.substring(0, 50) + '...' : message, 'chat_message']).catch(err => console.error(err));
+      });
+
       if (tokens.length > 0) {
         await notificationQueue.add('new-chat-message-notification', {
           tokens: tokens,
