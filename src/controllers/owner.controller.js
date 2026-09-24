@@ -150,8 +150,8 @@ const createTurf = async (req, res) => {
 
     await client.query('COMMIT');
     
-    newTurf.sports = sports || [];
-    newTurf.amenities = amenities || [];
+    newTurf.sports = uniqueSports;
+    newTurf.amenities = uniqueAmenities;
     newTurf.images = uploadedImages;
 
     return res.status(201).json({
