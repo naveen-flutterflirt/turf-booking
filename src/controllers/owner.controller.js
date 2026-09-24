@@ -32,9 +32,26 @@ const createTurf = async (req, res) => {
     const turfResult = await client.query(turfQuery, turfValues);
     const newTurf = turfResult.rows[0];
 
-    // 3. Link sports if provided
+    // Deduplicate and format sports case-insensitively
+    let uniqueSports = [];
     if (sports && Array.isArray(sports) && sports.length > 0) {
-       for (const sportItem of sports) {
+      const seen = new Set();
+      uniqueSports = sports.filter(s => {
+        if (!s || typeof s !== 'string') return false;
+        const lower = s.trim().toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      }).map(s => {
+        // Title Case formatting
+        const trimmed = s.trim();
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+      });
+    }
+
+    // 3. Link sports if provided
+    if (uniqueSports.length > 0) {
+       for (const sportItem of uniqueSports) {
          let sportId = sportItem;
          
          // Check if it's a valid UUID. If not, assume it's a name like "Cricket"
@@ -57,9 +74,26 @@ const createTurf = async (req, res) => {
        }
     }
 
-    // 3.5 Link amenities if provided
+    // Deduplicate and format amenities case-insensitively
+    let uniqueAmenities = [];
     if (amenities && Array.isArray(amenities) && amenities.length > 0) {
-       for (const amenityItem of amenities) {
+      const seen = new Set();
+      uniqueAmenities = amenities.filter(a => {
+        if (!a || typeof a !== 'string') return false;
+        const lower = a.trim().toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      }).map(a => {
+        // Title Case formatting
+        const trimmed = a.trim();
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+      });
+    }
+
+    // 3.5 Link amenities if provided
+    if (uniqueAmenities.length > 0) {
+       for (const amenityItem of uniqueAmenities) {
          let amenityId = amenityItem;
          
          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -225,15 +259,28 @@ const updateTurf = async (req, res) => {
     
     const result = await db.query(updateQuery, updateValues);
     
+    // Deduplicate and format sports case-insensitively
+    let uniqueSports = [];
+    if (sports && Array.isArray(sports) && sports.length > 0) {
+      const seen = new Set();
+      uniqueSports = sports.filter(s => {
+        let name = typeof s === 'object' && s !== null ? (s.name || s.id) : s;
+        if (!name || typeof name !== 'string') return false;
+        const lower = name.trim().toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      }).map(s => {
+        let name = typeof s === 'object' && s !== null ? (s.name || s.id) : s;
+        const trimmed = name.trim();
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+      });
+    }
+
     // Update sports if provided
     if (sports && Array.isArray(sports)) {
       await db.query('DELETE FROM turf_sports WHERE turf_id = $1', [id]);
-      for (let sportItem of sports) {
-        if (typeof sportItem === 'object' && sportItem !== null && sportItem.id) {
-          sportItem = sportItem.id;
-        } else if (typeof sportItem === 'object' && sportItem !== null && sportItem.name) {
-          sportItem = sportItem.name;
-        }
+      for (let sportItem of uniqueSports) {
         let sportId = sportItem;
         
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -254,15 +301,28 @@ const updateTurf = async (req, res) => {
       }
     }
 
+    // Deduplicate and format amenities case-insensitively
+    let uniqueAmenities = [];
+    if (amenities && Array.isArray(amenities) && amenities.length > 0) {
+      const seen = new Set();
+      uniqueAmenities = amenities.filter(a => {
+        let name = typeof a === 'object' && a !== null ? (a.name || a.id) : a;
+        if (!name || typeof name !== 'string') return false;
+        const lower = name.trim().toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      }).map(a => {
+        let name = typeof a === 'object' && a !== null ? (a.name || a.id) : a;
+        const trimmed = name.trim();
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+      });
+    }
+
     // Update amenities if provided
     if (amenities && Array.isArray(amenities)) {
       await db.query('DELETE FROM turf_amenities WHERE turf_id = $1', [id]);
-      for (let amenityItem of amenities) {
-        if (typeof amenityItem === 'object' && amenityItem !== null && amenityItem.id) {
-          amenityItem = amenityItem.id;
-        } else if (typeof amenityItem === 'object' && amenityItem !== null && amenityItem.name) {
-          amenityItem = amenityItem.name;
-        }
+      for (let amenityItem of uniqueAmenities) {
         let amenityId = amenityItem;
         
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
