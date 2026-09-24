@@ -10,6 +10,10 @@ const {
 // Protect all admin routes
 router.use(authenticateUser);
 router.use(authorizeRole(['ADMIN']));
+
+// Dashboard route
+router.get('/dashboard', adminController.getDashboardMetrics);
+
 // Turf routes (specific static routes before generic /:id routes)
 router.get('/turfs', adminController.getAllTurfs);
 router.get('/turfs/notify-nearby', adminController.getNotificationCampaigns);

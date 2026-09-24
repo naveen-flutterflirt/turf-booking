@@ -885,7 +885,84 @@ const updateAppSettings = async (req, res) => {
 		return res.status(500).json({ success: false, message: 'Internal server error' });
 	}
 };
+const getDashboardMetrics = async (req, res) => {
+	try {
+		// Basic counts
+		const totalCustomersResult = await db.query(`SELECT COUNT(*) FROM users WHERE role = 'CUSTOMER'`);
+		const totalOwnersResult = await db.query(`SELECT COUNT(*) FROM owners`);
+		const activeTurfsResult = await db.query(`SELECT COUNT(*) FROM turfs WHERE status = 'ACTIVE'`);
+		const pendingTurfsResult = await db.query(`SELECT COUNT(*) FROM turfs WHERE status = 'PENDING'`);
+		
+		// Bookings stats (exclude pending)
+		const bookingsStatsResult = await db.query(`
+			SELECT 
+				COUNT(*) as total_bookings,
+				COALESCE(SUM(total_price), 0) as total_revenue
+			FROM bookings 
+			WHERE status IN ('CONFIRMED', 'COMPLETED')
+		`);
+
+		const todaysActivityResult = await db.query(`
+			SELECT COUNT(*) FROM bookings 
+			WHERE booking_date = CURRENT_DATE
+		`);
+
+		// Recent bookings
+		const recentBookingsResult = await db.query(`
+			SELECT 
+				b.id,
+				b.booking_date,
+				b.total_price,
+				b.status,
+				t.name AS turf_name,
+				u.name AS customer_name
+			FROM bookings b
+			JOIN turfs t ON b.turf_id = t.id
+			JOIN users u ON b.customer_id = u.id
+			ORDER BY b.created_at DESC
+			LIMIT 5
+		`);
+
+		// Recent transactions (bookings with razorpay_order_id)
+		const recentTransactionsResult = await db.query(`
+			SELECT 
+				b.id,
+				b.booking_date,
+				b.total_price,
+				b.status,
+				t.name AS turf_name,
+				u.name AS customer_name
+			FROM bookings b
+			JOIN turfs t ON b.turf_id = t.id
+			JOIN users u ON b.customer_id = u.id
+			WHERE b.razorpay_order_id IS NOT NULL
+			ORDER BY b.created_at DESC
+			LIMIT 5
+		`);
+
+		return res.status(200).json({
+			success: true,
+			data: {
+				totalCustomers: parseInt(totalCustomersResult.rows[0].count),
+				totalOwners: parseInt(totalOwnersResult.rows[0].count),
+				activeTurfs: parseInt(activeTurfsResult.rows[0].count),
+				pendingTurfs: parseInt(pendingTurfsResult.rows[0].count),
+				totalBookings: parseInt(bookingsStatsResult.rows[0].total_bookings),
+				todaysActivity: parseInt(todaysActivityResult.rows[0].count),
+				totalRevenue: parseFloat(bookingsStatsResult.rows[0].total_revenue),
+				successfulPayments: parseInt(bookingsStatsResult.rows[0].total_bookings), // Same as total bookings since we filtered by CONFIRMED/COMPLETED
+				recentBookings: recentBookingsResult.rows,
+				recentTransactions: recentTransactionsResult.rows
+			}
+		});
+	} catch (err) {
+		console.error('Admin Get Dashboard Metrics Error:', err);
+		return res.status(500).json({ success: false, message: 'Internal server error' });
+	}
+};
+
 module.exports = {
+	getDashboardMetrics,
 	getAllTurfs,
 	approveTurf,
 	rejectTurf,
