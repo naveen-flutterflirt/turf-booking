@@ -22,9 +22,7 @@ router.get('/profile', ownerController.getOwnerProfile);
 router.put('/profile', ownerController.updateOwnerProfile);
 router.post('/queries', ownerController.submitQuery);
 router.get('/queries', ownerController.getQueries);
-
-// Payout Routes
-router.post('/payout-details', ownerController.addPayoutDetails);
-router.get('/payout-details', ownerController.getPayoutDetails);
-
+router.get('/account-details', ownerController.getAccountDetails);
+router.post('/account-details', ownerController.updateAccountDetails);
+router.put('/account-details', ownerController.updateAccountDetails);
 module.exports = router;

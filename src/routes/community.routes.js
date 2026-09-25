@@ -30,4 +30,16 @@ router.post('/join', authenticateUser, communityController.requestToJoin);
 // POST /community/accept - Host accepts a join request
 router.post('/accept', authenticateUser, communityController.acceptRequest);
 
+// GET /community/chat/:roomId/members - Get members of a chat room
+// router.get('/chat/:roomId/members', authenticateUser, communityController.getChatMembers);
+
+// PATCH /community/chat/:roomId/name - Update chat room name (Host only)
+// router.patch('/chat/:roomId/name', authenticateUser, communityController.updateChatRoomName);
+
+// DELETE /community/chat/:roomId/members/:userId - Remove a member (Host only)
+// router.delete('/chat/:roomId/members/:userId', authenticateUser, communityController.removeChatMember);
+
+// DELETE /community/broadcasts/:broadcastId - Host deletes their broadcast
+// router.delete('/broadcasts/:broadcastId', authenticateUser, communityController.deleteBroadcast);
+
 module.exports = router;

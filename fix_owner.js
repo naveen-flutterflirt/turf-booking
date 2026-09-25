@@ -1,145 +1,9 @@
-const turfService = require('../services/turf.service');
-const ownerRepo = require('../repositories/owner.repository');
-const userRepo = require('../repositories/user.repository');
-const db = require('../config/db');
-const createTurf = async (req, res) => {
-	const {
-		name,
-		address,
-		city,
-		price_per_hour,
-		opening_time,
-		closing_time
-	} = req.body || {};
-	if (!name || !address || !city || !price_per_hour || !opening_time || !closing_time) {
-		return res.status(400).json({
-			success: false,
-			message: 'Missing required fields for Turf'
-		});
-	}
-	try {
-		const newTurf = await turfService.createTurf(req.user.id, req.body);
-		return res.status(201).json({
-			success: true,
-			message: 'Turf created successfully. Awaiting admin approval.',
-			data: newTurf
-		});
-	} catch (err) {
-		console.error('Create Turf Error:', err);
-		return res.status(err.status || 500).json({
-			success: false,
-			message: err.message || 'Internal server error while creating turf'
-		});
-	}
-};
-const getOwnerTurfs = async (req, res) => {
-	try {
-		const data = await turfService.getOwnerTurfs(req.user.id);
-		return res.status(200).json({
-			success: true,
-			data
-		});
-	} catch (err) {
-		console.error('Get Owner Turfs Error:', err);
-		return res.status(err.status || 500).json({
-			success: false,
-			message: err.message || 'Internal server error'
-		});
-	}
-};
-const updateTurf = async (req, res) => {
-	try {
-		const data = await turfService.updateTurf(req.user.id, req.params.id, req.body || {});
-		return res.status(200).json({
-			success: true,
-			message: 'Turf updated successfully',
-			data
-		});
-	} catch (err) {
-		console.error('Update Turf Error:', err);
-		return res.status(err.status || 500).json({
-			success: false,
-			message: err.message || 'Internal server error'
-		});
-	}
-};
-const deleteTurf = async (req, res) => {
-	try {
-		await turfService.deleteTurf(req.user.id, req.params.id);
-		return res.status(200).json({
-			success: true,
-			message: 'Turf deleted successfully'
-		});
-	} catch (err) {
-		console.error('Delete Turf Error:', err);
-		return res.status(err.status || 500).json({
-			success: false,
-			message: err.message || 'Internal server error'
-		});
-	}
-};
-const addTurfImage = async (req, res) => {
-	const {
-		image_url,
-		s3_key,
-		sort_order
-	} = req.body;
-	if (!image_url) return res.status(400).json({
-		success: false,
-		message: 'image_url is required'
-	});
-	try {
-		const data = await turfService.addTurfImage(req.user.id, req.params.id, {
-			image_url,
-			s3_key,
-			sort_order
-		});
-		return res.status(201).json({
-			success: true,
-			message: 'Image added successfully',
-			data
-		});
-	} catch (err) {
-		console.error('Add Turf Image Error:', err);
-		return res.status(err.status || 500).json({
-			success: false,
-			message: err.message || 'Internal server error'
-		});
-	}
-};
-const deleteTurfImage = async (req, res) => {
-	try {
-		await turfService.deleteTurfImage(req.user.id, req.params.id, req.params.imageId);
-		return res.status(200).json({
-			success: true,
-			message: 'Image deleted successfully'
-		});
-	} catch (err) {
-		console.error('Delete Turf Image Error:', err);
-		return res.status(err.status || 500).json({
-			success: false,
-			message: err.message || 'Internal server error'
-		});
-	}
-};
-const getOwnerBookings = async (req, res) => {
-	try {
-		const bookingService = require('../services/booking.service');
-		const result = await bookingService.getOwnerBookings(req.user.id, req.query);
-		return res.status(200).json({
-			success: true,
-			data: result.data,
-			meta: result.meta
-		});
-	} catch (err) {
-		console.error('Owner Get Bookings Error:', err);
-		return res.status(err.status || 500).json({
-			success: false,
-			message: err.message || 'Internal server error'
-		});
-	}
-};
+const fs = require('fs');
 
+const file = 'src/controllers/owner.controller.js';
+let content = fs.readFileSync(file, 'utf8');
+
+const cleanCode = `
 const getOwnerDashboardStats = async (req, res) => {
 	try {
         const userId = req.user.id;
@@ -153,37 +17,37 @@ const getOwnerDashboardStats = async (req, res) => {
 		}
 		const ownerId = ownerResult.rows[0].id;
 		// 1. Total Turfs (Active/Open)
-		const turfsRes = await db.query(`SELECT COUNT(id) AS count FROM turfs WHERE owner_id = $1`, [ownerId]);
+		const turfsRes = await db.query(\`SELECT COUNT(id) AS count FROM turfs WHERE owner_id = $1\`, [ownerId]);
 		const totalTurfs = parseInt(turfsRes.rows[0].count) || 0;
-		const activeTurfsRes = await db.query(`SELECT COUNT(id) AS count FROM turfs WHERE owner_id = $1 AND status = 'ACTIVE' AND is_open = TRUE`, [ownerId]);
+		const activeTurfsRes = await db.query(\`SELECT COUNT(id) AS count FROM turfs WHERE owner_id = $1 AND status = 'ACTIVE' AND is_open = TRUE\`, [ownerId]);
 		const totalActiveTurfs = parseInt(activeTurfsRes.rows[0].count) || 0;
 		// 2. Earnings and Total Bookings
-		const bookingsRes = await db.query(`
+		const bookingsRes = await db.query(\`
       SELECT 
         COUNT(b.id) AS total_bookings,
         SUM(CASE WHEN b.status IN ('CONFIRMED', 'COMPLETED') THEN b.total_price ELSE 0 END) AS total_earnings
       FROM bookings b
       JOIN turfs t ON b.turf_id = t.id
       WHERE t.owner_id = $1 AND b.status != 'PAYMENT_PENDING'
-    `, [ownerId]);
+    \`, [ownerId]);
 		const totalBookings = parseInt(bookingsRes.rows[0].total_bookings) || 0;
 		const totalEarnings = parseFloat(bookingsRes.rows[0].total_earnings) || 0;
 		// 3. Occupancy Rate Calculation
 		let occupancyRate = 0;
 		if (totalActiveTurfs > 0) {
-			const bookedTurfsRes = await db.query(`
+			const bookedTurfsRes = await db.query(\`
         SELECT COUNT(DISTINCT b.turf_id) AS booked_turfs
         FROM bookings b
         JOIN turfs t ON b.turf_id = t.id
         WHERE t.owner_id = $1 
           AND b.status = 'CONFIRMED'
           AND b.booking_date = CURRENT_DATE
-      `, [ownerId]);
+      \`, [ownerId]);
 			const bookedTurfs = parseInt(bookedTurfsRes.rows[0].booked_turfs) || 0;
 			occupancyRate = (bookedTurfs / totalActiveTurfs) * 100;
 		}
 		// 4. Recent Top 4 Bookings
-		const recentRes = await db.query(`
+		const recentRes = await db.query(\`
       SELECT booking_id, booking_date, start_time, status, total_price, turf_name, sport_name, customer_name
       FROM (
         SELECT 
@@ -206,9 +70,9 @@ const getOwnerDashboardStats = async (req, res) => {
       WHERE rn = 1
       ORDER BY created_at DESC
       LIMIT 4
-    `, [ownerId]);
+    \`, [ownerId]);
 		// 5. Weekly Earnings Chart Data
-		const weeklyEarningsRes = await db.query(`
+		const weeklyEarningsRes = await db.query(\`
       WITH last_7_days AS (
         SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day')::date AS date
       )
@@ -224,7 +88,7 @@ const getOwnerDashboardStats = async (req, res) => {
       ) b ON b.booking_date = d.date
       GROUP BY d.date
       ORDER BY d.date ASC
-    `, [ownerId]);
+    \`, [ownerId]);
 		const formattedWeeklyEarnings = weeklyEarningsRes.rows.map(row => ({
 			label: row.label,
 			value: parseFloat(row.value)
@@ -362,18 +226,18 @@ const getAccountDetails = async (req, res) => {
 		let query;
 		let params;
 		if (req.user.role === 'ADMIN' && owner_id) {
-			query = `
+			query = \`
         SELECT account_name, account_number, ifsc_code, bank_name
         FROM owners
         WHERE id = $1
-      `;
+      \`;
 			params = [owner_id];
 		} else if (req.user.role === 'ADMIN' && !owner_id) {
-			query = `
+			query = \`
         SELECT o.id as owner_id, o.account_name, o.account_number, o.ifsc_code, o.bank_name, u.name, u.email
         FROM owners o
         JOIN users u ON o.user_id = u.id
-      `;
+      \`;
 			params = [];
 			const result = await db.query(query, params);
 			return res.status(200).json({
@@ -381,11 +245,11 @@ const getAccountDetails = async (req, res) => {
 				data: result.rows
 			});
 		} else {
-			query = `
+			query = \`
         SELECT account_name, account_number, ifsc_code, bank_name
         FROM owners
         WHERE user_id = $1
-      `;
+      \`;
 			params = [userId];
 		}
 		const result = await db.query(query, params);
@@ -440,12 +304,12 @@ const updateAccountDetails = async (req, res) => {
             console.error("Razorpay creation failed, but continuing update. Error:", rzpErr.message);
         }
 
-		const query = `
+		const query = \`
       UPDATE owners 
       SET account_name = $1, account_number = $2, ifsc_code = $3, bank_name = $4, razorpay_linked_account_id = COALESCE($5, razorpay_linked_account_id), updated_at = CURRENT_TIMESTAMP
       WHERE user_id = $6
       RETURNING account_name, account_number, ifsc_code, bank_name
-    `;
+    \`;
 		const result = await db.query(query, [account_name, account_number, ifsc_code, bank_name, linkedAccountId, userId]);
 		return res.status(200).json({
 			success: true,
@@ -477,3 +341,13 @@ module.exports = {
 	getAccountDetails,
 	updateAccountDetails
 };
+`;
+
+const index = content.indexOf('const getOwnerDashboardStats = async (req, res) => {');
+if (index !== -1) {
+    content = content.substring(0, index) + cleanCode;
+    fs.writeFileSync(file, content, 'utf8');
+    console.log("Fixed owner.controller.js");
+} else {
+    console.log("Could not find anchor.");
+}

@@ -40,7 +40,7 @@ class RazorpayService {
     if (!this.isConfigured()) throw new Error('Payment gateway is not configured.');
     const authHeader = 'Basic ' + Buffer.from(process.env.RAZORPAY_KEY_ID + ':' + process.env.RAZORPAY_KEY_SECRET).toString('base64');
     try {
-      const response = await axios.post('https://api.razorpay.com/v1/beta/accounts', {
+      const response = await axios.post('https://api.razorpay.com/beta/accounts', {
         name: name || "Vendor",
         email: email || "vendor@example.com",
         tnc_accepted: true,

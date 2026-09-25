@@ -10,6 +10,10 @@ const {
 // Protect all admin routes
 router.use(authenticateUser);
 router.use(authorizeRole(['ADMIN']));
+
+// Dashboard route
+router.get('/dashboard', adminController.getDashboardMetrics);
+
 // Turf routes (specific static routes before generic /:id routes)
 router.get('/turfs', adminController.getAllTurfs);
 router.get('/turfs/notify-nearby', adminController.getNotificationCampaigns);
@@ -36,4 +40,8 @@ router.post('/promos', adminController.addPromo);
 router.get('/promos', adminController.getAllPromos);
 router.patch('/promos/:id/status', adminController.updatePromoStatus);
 router.delete('/promos/:id', adminController.deletePromo);
+
+router.get('/app-settings', adminController.getAppSettings);
+router.put('/app-settings', adminController.updateAppSettings);
+
 module.exports = router;

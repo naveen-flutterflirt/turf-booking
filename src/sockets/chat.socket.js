@@ -22,11 +22,16 @@ const setupChatSockets = (io, socket) => {
     if (!roomId || !senderId || !message) return;
 
     try {
-      // 1. Save message to PostgreSQL database
+      // 1. Save message to PostgreSQL database and fetch sender's name
       const insertQuery = `
-        INSERT INTO chat_messages (room_id, sender_id, message)
-        VALUES ($1, $2, $3)
-        RETURNING id, room_id, sender_id, message, created_at;
+        WITH inserted_message AS (
+          INSERT INTO chat_messages (room_id, sender_id, message)
+          VALUES ($1, $2, $3)
+          RETURNING id, room_id, sender_id, message, created_at
+        )
+        SELECT im.*, u.name as sender_name
+        FROM inserted_message im
+        JOIN users u ON im.sender_id = u.id;
       `;
       const result = await db.query(insertQuery, [roomId, senderId, message]);
       const savedMessage = result.rows[0];
@@ -46,6 +51,12 @@ const setupChatSockets = (io, socket) => {
       
       const tokens = participantResult.rows.map(row => row.fcm_token).filter(t => t);
       
+      // Save to Notification DB API
+      participantResult.rows.forEach(user => {
+        db.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)`, 
+          [user.id, 'New Message', message.length > 50 ? message.substring(0, 50) + '...' : message, 'chat_message']).catch(err => console.error(err));
+      });
+
       if (tokens.length > 0) {
         await notificationQueue.add('new-chat-message-notification', {
           tokens: tokens,

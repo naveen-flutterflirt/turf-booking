@@ -12,6 +12,7 @@ const createTables = async () => {
     DROP TABLE IF EXISTS owners CASCADE;
     DROP TABLE IF EXISTS users CASCADE;
     DROP TABLE IF EXISTS owner_queries CASCADE;
+    DROP TABLE IF EXISTS app_settings CASCADE;
 
     CREATE TABLE users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -32,6 +33,10 @@ const createTables = async () => {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       business_name VARCHAR(255) NOT NULL,
+      account_name VARCHAR(255),
+      account_number VARCHAR(255),
+      ifsc_code VARCHAR(50),
+      bank_name VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -146,6 +151,18 @@ const createTables = async () => {
       type VARCHAR(50) NOT NULL,
       is_read BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE app_settings (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      latest_android_version VARCHAR(50) NOT NULL,
+      latest_ios_version VARCHAR(50) NOT NULL,
+      force_update BOOLEAN DEFAULT FALSE,
+      normal_update BOOLEAN DEFAULT FALSE,
+      update_message TEXT,
+      play_store_url TEXT,
+      app_store_url TEXT,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
 
