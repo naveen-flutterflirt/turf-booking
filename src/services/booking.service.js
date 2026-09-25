@@ -3,6 +3,32 @@ const bookingRepo = require('../repositories/booking.repository');
 const turfRepo = require('../repositories/turf.repository');
 const ownerRepo = require('../repositories/owner.repository');
 const razorpayService = require('./razorpay.service');
+const { notificationQueue } = require('../utils/notificationQueue');
+const userRepo = require('../repositories/user.repository');
+const notificationRepo = require('../repositories/notification.repository');
+
+const sendBookingNotification = async (userId, turfId, title, body, eventType) => {
+  try {
+    const customerRes = await userRepo.findUserWithToken(userId);
+    if (customerRes.rows.length > 0 && customerRes.rows[0].fcm_token) {
+      await notificationQueue.add('booking-customer-alert', { tokens: [customerRes.rows[0].fcm_token], payload: { title, body, data: { type: eventType, turfId: String(turfId) } } });
+    }
+    await notificationRepo.insertNotification(userId, title, body, eventType);
+    
+    const turfRes = await turfRepo.getFullTurf(turfId);
+    if (turfRes.rows.length > 0) {
+      const ownerUserRes = await ownerRepo.findOwnerUserIdById(turfRes.rows[0].owner_id);
+      if (ownerUserRes.rows.length > 0) {
+        const ownerUserId = ownerUserRes.rows[0].user_id;
+        const ownerTokenRes = await userRepo.findUserWithToken(ownerUserId);
+        if (ownerTokenRes.rows.length > 0 && ownerTokenRes.rows[0].fcm_token) {
+          await notificationQueue.add('booking-owner-alert', { tokens: [ownerTokenRes.rows[0].fcm_token], payload: { title, body, data: { type: eventType, turfId: String(turfId) } } });
+        }
+        await notificationRepo.insertNotification(ownerUserId, title, body, eventType);
+      }
+    }
+  } catch (err) { console.error('Notification Error:', err); }
+};
 
 // Helper: add hours to a time string "HH:MM:SS"
 const addHoursToTime = (timeStr, hours) => {
@@ -196,13 +222,19 @@ const verifyPayment = async (userId, { razorpay_order_id, razorpay_payment_id, r
   if (updateResult.rows.length === 0) { const err = new Error('No bookings found for this order'); err.status = 404; throw err; }
 
   const receiptResult = await bookingRepo.getBookingReceipt(razorpay_order_id);
+  if (receiptResult.rows.length > 0) {
+    const bookingInfo = receiptResult.rows[0];
+    await sendBookingNotification(userId, bookingInfo.turf_id, 'Booking Confirmed!', `Your booking at ${bookingInfo.turf_name} is confirmed.`, 'booking_confirmed');
+  }
   return receiptResult.rows;
 };
 
 const cancelBooking = async (userId, id) => {
   const result = await bookingRepo.cancelBooking(id, userId);
   if (result.rows.length === 0) { const err = new Error('Booking not found or already cancelled'); err.status = 404; throw err; }
-  return result.rows[0];
+  const bookingData = result.rows[0];
+  await sendBookingNotification(userId, bookingData.turf_id, 'Booking Cancelled', `A booking on ${bookingData.booking_date} has been cancelled.`, 'booking_cancelled');
+  return bookingData;
 };
 
 const getCustomerBookings = (userId) => bookingRepo.getCustomerBookings(userId).then(r => r.rows);
@@ -240,6 +272,7 @@ const rescheduleBooking = async (userId, id, { date, start_time, end_time }) => 
 
     const updateResult = await bookingRepo.updateBookingSchedule(client, { id, date, startTime: formattedStartTime, endTime: formattedEndTime });
     await client.query('COMMIT');
+    await sendBookingNotification(userId, booking.turf_id, 'Booking Rescheduled', `A booking was rescheduled to ${date} at ${formattedStartTime}.`, 'booking_rescheduled');
     return updateResult.rows[0];
   } catch (err) {
     await client.query('ROLLBACK'); throw err;
