@@ -1,5 +1,6 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const axios = require('axios');
 
 class RazorpayService {
   constructor() {
@@ -20,7 +21,7 @@ class RazorpayService {
     return this.razorpay !== null;
   }
 
-  async createOrder(amount, receipt) {
+  async createOrder(amount, receipt, transfers = null) {
     if (!this.isConfigured()) {
       throw new Error('Payment gateway is not configured on this server.');
     }
@@ -29,7 +30,37 @@ class RazorpayService {
       currency: "INR",
       receipt: receipt
     };
+    if (transfers && transfers.length > 0) {
+      options.transfers = transfers;
+    }
     return await this.razorpay.orders.create(options);
+  }
+
+  async createLinkedAccount({ name, email, accountHolderName, bankAccountNumber, ifsc }) {
+    if (!this.isConfigured()) throw new Error('Payment gateway is not configured.');
+    const authHeader = 'Basic ' + Buffer.from(process.env.RAZORPAY_KEY_ID + ':' + process.env.RAZORPAY_KEY_SECRET).toString('base64');
+    try {
+      const response = await axios.post('https://api.razorpay.com/v1/beta/accounts', {
+        name: name || "Vendor",
+        email: email || "vendor@example.com",
+        tnc_accepted: true,
+        account_details: {
+          business_name: name || "Vendor Business",
+          business_type: "individual"
+        },
+        bank_account: {
+          ifsc_code: ifsc,
+          beneficiary_name: accountHolderName,
+          account_number: bankAccountNumber
+        }
+      }, {
+        headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' }
+      });
+      return response.data;
+    } catch (err) {
+      console.error('Razorpay Linked Account Error:', err.response ? err.response.data : err.message);
+      throw new Error('Failed to create Razorpay Linked Account. Check bank details.');
+    }
   }
 
   verifyPaymentSignature(orderId, paymentId, signature) {

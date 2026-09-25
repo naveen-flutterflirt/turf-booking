@@ -17,9 +17,11 @@ const http = require('http');
 
 // Initialize background workers
 require('./src/utils/notificationWorker');
+// require('./src/utils/payoutWorker'); // TODO: enable when payout is ready
 require('./src/utils/bookingCron');
 
 const app = express();
+
 const httpServer = http.createServer(app);
 
 // Initialize Socket.io
@@ -60,7 +62,6 @@ app.use('/upload', uploadRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/owner', ownerRoutes);
 app.use('/admin', adminRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/community', communityRoutes);
 
 const PORT = process.env.PORT || 3000;
