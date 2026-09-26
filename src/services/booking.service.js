@@ -126,7 +126,9 @@ const getTurfSlots = async (turfId, { date, sport_id }) => {
     const [sh, sm, ss] = current.split(':').map(Number);
     const [y, m, d] = date.split('-').map(Number);
     const slotDateLocal = new Date(y, m - 1, d, sh, sm, ss || 0);
-    const isExpired = slotDateLocal < new Date();
+    const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const nowIST = new Date(nowStr);
+    const isExpired = slotDateLocal < nowIST;
 
     slots.push({ start: current.substring(0, 5), end: nextHour === '00:00:00' ? '00:00' : nextHour.substring(0, 5), status: isBooked ? 'BOOKED' : (isExpired ? 'EXPIRED' : 'AVAILABLE') });
     current = nextHour;
@@ -167,7 +169,10 @@ const createBooking = async (userId, { turf_id, sport_id, date, time_slots, is_f
     const firstSlot = requestedSlots[0];
     const [sh, sm, ss] = firstSlot.start_time.split(':').map(Number);
     const [y, m, d] = date.split('-').map(Number);
-    if (new Date(y, m - 1, d, sh, sm, ss || 0) < new Date()) {
+    const slotDateLocal = new Date(y, m - 1, d, sh, sm, ss || 0);
+    const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const nowIST = new Date(nowStr);
+    if (slotDateLocal < nowIST) {
       await client.query('ROLLBACK'); const err = new Error('Cannot book a time slot in the past'); err.status = 400; throw err;
     }
 
@@ -246,7 +251,10 @@ const rescheduleBooking = async (userId, id, { date, start_time, end_time }) => 
 
   const [sh, sm, ss] = formattedStartTime.split(':').map(Number);
   const [y, m, d] = date.split('-').map(Number);
-  if (new Date(y, m - 1, d, sh, sm, ss || 0) < new Date()) {
+  const slotDateLocal = new Date(y, m - 1, d, sh, sm, ss || 0);
+  const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+  const nowIST = new Date(nowStr);
+  if (slotDateLocal < nowIST) {
     const err = new Error('Cannot reschedule to a time slot in the past'); err.status = 400; throw err;
   }
 
@@ -262,7 +270,8 @@ const rescheduleBooking = async (userId, id, { date, start_time, end_time }) => 
     const originalBookingDate = new Date(booking.booking_date);
     const [origSh, origSm, origSs] = booking.start_time.split(':').map(Number);
     originalBookingDate.setHours(origSh, origSm, origSs || 0);
-    const twoHoursFromNow = new Date(); twoHoursFromNow.setHours(twoHoursFromNow.getHours() + 2);
+    const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const twoHoursFromNow = new Date(nowStr); twoHoursFromNow.setHours(twoHoursFromNow.getHours() + 2);
     if (originalBookingDate <= twoHoursFromNow) {
       await client.query('ROLLBACK'); const err = new Error('Rescheduling is only allowed at least 2 hours before the match starts'); err.status = 400; throw err;
     }
