@@ -7,7 +7,8 @@ const feedbackRepo = require('../repositories/feedback.repository');
 const notificationRepo = require('../repositories/notification.repository');
 const adminRepo = require('../repositories/admin.repository');
 const {
-	notificationQueue
+	notificationQueue,
+	connection: redisClient
 } = require('../utils/notificationQueue');
 const getAllTurfs = async (req, res) => {
 	try {
@@ -524,6 +525,7 @@ const addPromo = async (req, res) => {
 	});
 	try {
 		const result = await adminRepo.addPromo(image_url, status);
+		await redisClient.del('cache:/customer/promos');
 		return res.status(201).json({
 			success: true,
 			message: 'Promo created successfully',
@@ -544,6 +546,7 @@ const deletePromo = async (req, res) => {
 			success: false,
 			message: 'Promo not found'
 		});
+		await redisClient.del('cache:/customer/promos');
 		return res.status(200).json({
 			success: true,
 			message: 'Promo deleted successfully'
@@ -570,6 +573,7 @@ const updatePromoStatus = async (req, res) => {
 			success: false,
 			message: 'Promo not found'
 		});
+		await redisClient.del('cache:/customer/promos');
 		return res.status(200).json({
 			success: true,
 			message: 'Promo status updated',
@@ -626,6 +630,7 @@ const updateAppSettings = async (req, res) => {
 			 RETURNING *`,
 			[latest_android_version, latest_ios_version, force_update, normal_update, update_message, play_store_url, app_store_url]
 		);
+		await redisClient.del('cache:/customer/app-settings');
 		return res.status(200).json({ success: true, message: 'App settings updated successfully', data: result.rows[0] });
 	} catch (err) {
 		console.error('Admin Update App Settings Error:', err);
