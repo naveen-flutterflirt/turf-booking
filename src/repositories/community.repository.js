@@ -87,8 +87,21 @@ const getRoomByBroadcastAndUser = (broadcastId, userId) =>
     [broadcastId, userId]
   );
 
+const getChatMembers = (roomId) =>
+  db.query(`SELECT u.id, u.name, u.email FROM chat_participants cp JOIN users u ON cp.user_id = u.id WHERE cp.room_id = $1`, [roomId]);
+
+const updateChatRoomName = (roomId, name, hostId) =>
+  db.query(`UPDATE chat_rooms cr SET name = $1 FROM community_broadcasts cb WHERE cr.id = $2 AND cr.broadcast_id = cb.id AND cb.host_id = $3 RETURNING cr.*`, [name, roomId, hostId]);
+
+const removeChatMember = (roomId, userId, hostId) =>
+  db.query(`DELETE FROM chat_participants cp USING chat_rooms cr, community_broadcasts cb WHERE cp.room_id = $1 AND cp.user_id = $2 AND cp.room_id = cr.id AND cr.broadcast_id = cb.id AND cb.host_id = $3 RETURNING cp.user_id`, [roomId, userId, hostId]);
+
+const deleteBroadcast = (broadcastId, hostId) =>
+  db.query(`DELETE FROM community_broadcasts WHERE id = $1 AND host_id = $2 RETURNING id`, [broadcastId, hostId]);
+
 module.exports = {
   createBroadcast, getFeed, getMyBroadcasts, insertJoinRequest, getBroadcastHost,
   getPendingRequests, acceptJoinRequest, findChatRoomByBroadcast, createChatRoom,
   addChatParticipant, checkParticipant, getChatMessages, getMyChats, getRoomByBroadcastAndUser,
+  getChatMembers, updateChatRoomName, removeChatMember, deleteBroadcast
 };

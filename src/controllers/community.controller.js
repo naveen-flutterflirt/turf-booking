@@ -254,6 +254,57 @@ const getRoomByBroadcastId = async (req, res) => {
 		});
 	}
 };
+
+const getChatMembers = async (req, res) => {
+	try {
+		const { roomId } = req.params;
+		const participantCheck = await communityRepo.checkParticipant(roomId, req.user.id);
+		if (participantCheck.rows.length === 0) return res.status(403).json({ success: false, message: 'Access denied' });
+		const result = await communityRepo.getChatMembers(roomId);
+		res.status(200).json({ success: true, data: result.rows });
+	} catch (error) {
+		console.error('Error in getChatMembers:', error);
+		res.status(500).json({ success: false, message: 'Internal Server Error' });
+	}
+};
+
+const updateChatRoomName = async (req, res) => {
+	try {
+		const { roomId } = req.params;
+		const { name } = req.body;
+		if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
+		const result = await communityRepo.updateChatRoomName(roomId, name, req.user.id);
+		if (result.rows.length === 0) return res.status(403).json({ success: false, message: 'Unauthorized or room not found' });
+		res.status(200).json({ success: true, message: 'Chat room name updated', data: result.rows[0] });
+	} catch (error) {
+		console.error('Error in updateChatRoomName:', error);
+		res.status(500).json({ success: false, message: 'Internal Server Error' });
+	}
+};
+
+const removeChatMember = async (req, res) => {
+	try {
+		const { roomId, userId } = req.params;
+		const result = await communityRepo.removeChatMember(roomId, userId, req.user.id);
+		if (result.rows.length === 0) return res.status(403).json({ success: false, message: 'Unauthorized or user not found in room' });
+		res.status(200).json({ success: true, message: 'Member removed successfully' });
+	} catch (error) {
+		console.error('Error in removeChatMember:', error);
+		res.status(500).json({ success: false, message: 'Internal Server Error' });
+	}
+};
+
+const deleteBroadcast = async (req, res) => {
+	try {
+		const { broadcastId } = req.params;
+		const result = await communityRepo.deleteBroadcast(broadcastId, req.user.id);
+		if (result.rows.length === 0) return res.status(403).json({ success: false, message: 'Unauthorized or broadcast not found' });
+		res.status(200).json({ success: true, message: 'Broadcast deleted successfully' });
+	} catch (error) {
+		console.error('Error in deleteBroadcast:', error);
+		res.status(500).json({ success: false, message: 'Internal Server Error' });
+	}
+};
 module.exports = {
 	createBroadcast,
 	getFeed,
@@ -263,5 +314,9 @@ module.exports = {
 	acceptRequest,
 	getChatHistory,
 	getMyChats,
-	getRoomByBroadcastId
+	getRoomByBroadcastId,
+	getChatMembers,
+	updateChatRoomName,
+	removeChatMember,
+	deleteBroadcast
 };
