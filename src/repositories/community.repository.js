@@ -1,12 +1,26 @@
 const db = require('../config/db');
 
-const createBroadcast = (hostId, { message, sport_id, play_date, start_time, end_time, players_needed }) =>
-  db.query(
-    `INSERT INTO community_broadcasts (host_id, message, sport_id, play_date, start_time, end_time, players_needed)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [hostId, message, sport_id || null, play_date || null, start_time || null, end_time || null, players_needed || null]
+const createBroadcast = (hostId, { message, sport_id, play_date, start_time, end_time, players_needed }) => {
+  const shortId = Math.random().toString(36).substring(2, 8);
+  
+  // Create a readable slug from the broadcast message
+  const baseSlug = (message || 'join-match')
+    .toString().toLowerCase()
+    .replace(/\s+/g, '-')           // Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+    .replace(/^-+/, '')             // Trim - from start
+    .replace(/-+$/, '')             // Trim - from end
+    .substring(0, 30);              // Keep it short
+    
+  const slug = `${baseSlug || 'match'}-${shortId}`;
+  
+  return db.query(
+    `INSERT INTO community_broadcasts (host_id, message, sport_id, play_date, start_time, end_time, players_needed, slug)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [hostId, message, sport_id || null, play_date || null, start_time || null, end_time || null, players_needed || null, slug]
   );
-
+};
 const getFeed = () =>
   db.query(
     `SELECT cb.*, u.name as host_name, s.name as sport_name,
@@ -14,6 +28,14 @@ const getFeed = () =>
      FROM community_broadcasts cb JOIN users u ON cb.host_id = u.id LEFT JOIN sports s ON cb.sport_id = s.id
      WHERE cb.status = 'ACTIVE' ORDER BY cb.created_at DESC`
   );
+const getBroadcastById = (idOrSlug) => {
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+  const query = isUUID 
+    ? `SELECT cb.*, u.name as host_name, s.name as sport_name FROM community_broadcasts cb JOIN users u ON cb.host_id = u.id LEFT JOIN sports s ON cb.sport_id = s.id WHERE cb.id = $1`
+    : `SELECT cb.*, u.name as host_name, s.name as sport_name FROM community_broadcasts cb JOIN users u ON cb.host_id = u.id LEFT JOIN sports s ON cb.sport_id = s.id WHERE cb.slug = $1`;
+  
+  return db.query(query, [idOrSlug]);
+};
 
 const getMyBroadcasts = (hostId) =>
   db.query(
@@ -103,5 +125,5 @@ module.exports = {
   createBroadcast, getFeed, getMyBroadcasts, insertJoinRequest, getBroadcastHost,
   getPendingRequests, acceptJoinRequest, findChatRoomByBroadcast, createChatRoom,
   addChatParticipant, checkParticipant, getChatMessages, getMyChats, getRoomByBroadcastAndUser,
-  getChatMembers, updateChatRoomName, removeChatMember, deleteBroadcast
+  getChatMembers, updateChatRoomName, removeChatMember, deleteBroadcast, getBroadcastById
 };
