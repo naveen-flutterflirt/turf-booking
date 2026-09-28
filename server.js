@@ -64,6 +64,16 @@ app.use(express.json({
 		req.rawBody = buf;
 	}
 }));
+// Serve static files from 'public' directory
+// We use setHeaders to ensure apple-app-site-association is served as application/json
+app.use(express.static('public', {
+	setHeaders: (res, path, stat) => {
+		if (path.endsWith('apple-app-site-association')) {
+			res.set('Content-Type', 'application/json');
+		}
+	}
+}));
+
 // --- ROUTES ---
 // Health check
 app.get('/health', (req, res) => {

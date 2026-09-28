@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.turfcut.app",
+      "sha256_cert_fingerprints": [
+        "B2:07:5C:33:0C:46:94:F7:59:08:95:EC:0B:55:5A:B8:AF:07:B1:36:FE:DA:AE:C2:09:51:86:0C:FD:58:84:6C"
+      ]
+    }
+  }
+]
