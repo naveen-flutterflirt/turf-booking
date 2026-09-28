@@ -25,6 +25,17 @@ const notificationWorker = new Worker(
           body: payload.body,
         },
         data: payload.data || {},
+        android: {
+          priority: 'high',
+        },
+        apns: {
+          payload: {
+            aps: {
+              contentAvailable: true,
+              sound: 'default',
+            }
+          }
+        }
       });
 
       console.log(`Job ${job.id}: Success: ${response.successCount}, Failed: ${response.failureCount}`);
