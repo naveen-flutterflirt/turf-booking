@@ -162,8 +162,20 @@ const googleSignupOwner = async (req, res) => {
   }
 };
 
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await authService.deleteAccount({ userId });
+    return res.status(200).json({ success: true, message: 'Account deleted permanently.' });
+  } catch (err) {
+    console.error('Delete Account Error:', err);
+    return res.status(err.status || 500).json({ success: false, message: err.message || 'Internal server error' });
+  }
+};
+
 module.exports = {
   registerOwner, loginOwner, loginAdmin, registerCustomer, loginCustomer,
   verifyEmail, resendVerificationCode, forgotPassword, resetPassword,
-  googleLoginCustomer, googleSignupCustomer, googleLoginOwner, googleSignupOwner
+  googleLoginCustomer, googleSignupCustomer, googleLoginOwner, googleSignupOwner,
+  deleteAccount
 };

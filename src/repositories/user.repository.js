@@ -102,6 +102,9 @@ const insertAdminNotification = (client, { userId, title, message, type }) =>
     [userId, title, message, type]
   );
 
+const deleteUser = (id) =>
+  db.query("DELETE FROM users WHERE id = $1 RETURNING id", [id]);
+
 module.exports = {
   findByEmail,
   findByEmailAndRole,
@@ -125,4 +128,5 @@ module.exports = {
   findUserWithToken,
   findUsersByRole,
   insertAdminNotification,
+  deleteUser,
 };

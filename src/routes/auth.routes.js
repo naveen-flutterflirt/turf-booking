@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const rateLimit = require('express-rate-limit');
+const { authenticateUser } = require('../middlewares/auth.middleware');
 
 // Strict Rate Limiting for Auth APIs: Max 10 requests per 15 minutes per IP
 const authLimiter = rateLimit({
@@ -29,5 +30,8 @@ router.post('/customer/google', authController.googleLoginCustomer);
 router.post('/customer/google-signup', authController.googleSignupCustomer);
 router.post('/owner/google', authController.googleLoginOwner);
 router.post('/owner/google-signup', authController.googleSignupOwner);
+
+// Permanent Account Deletion
+router.delete('/delete-account', authenticateUser, authController.deleteAccount);
 
 module.exports = router;

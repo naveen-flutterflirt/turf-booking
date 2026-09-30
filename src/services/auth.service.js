@@ -273,8 +273,19 @@ const googleSignupOwner = async ({ idToken, phone, name, business_name, password
   } finally { client.release(); }
 };
 
+const deleteAccount = async ({ userId }) => {
+  const userResult = await userRepo.findById(userId);
+  if (userResult.rows.length === 0) {
+    const err = new Error('User not found');
+    err.status = 404;
+    throw err;
+  }
+  await userRepo.deleteUser(userId);
+};
+
 module.exports = {
   registerOwner, loginOwner, loginAdmin, registerCustomer, loginCustomer,
   verifyEmail, resendVerificationCode, forgotPassword, resetPassword,
   googleLoginCustomer, googleSignupCustomer, googleLoginOwner, googleSignupOwner,
+  deleteAccount,
 };
