@@ -94,7 +94,7 @@ const getChatMessages = (roomId) =>
 
 const getMyChats = (userId) =>
   db.query(
-    `SELECT cr.id as room_id, cr.is_active, cb.message as broadcast_message, cb.sport_id,
+    `SELECT cr.id as room_id, cr.name, cr.is_active, cb.message as broadcast_message, cb.sport_id,
        s.name as sport_name, u.name as host_name
      FROM chat_rooms cr JOIN chat_participants cp ON cr.id = cp.room_id
      JOIN community_broadcasts cb ON cr.broadcast_id = cb.id JOIN users u ON cb.host_id = u.id
