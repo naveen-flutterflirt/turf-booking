@@ -112,8 +112,8 @@ const getRoomByBroadcastAndUser = (broadcastId, userId) =>
 const getChatMembers = (roomId) =>
   db.query(`SELECT u.id, u.name, u.email FROM chat_participants cp JOIN users u ON cp.user_id = u.id WHERE cp.room_id = $1`, [roomId]);
 
-const updateChatRoomName = (roomId, name, hostId) =>
-  db.query(`UPDATE chat_rooms cr SET name = $1 FROM community_broadcasts cb WHERE cr.id = $2 AND cr.broadcast_id = cb.id AND cb.host_id = $3 RETURNING cr.*`, [name, roomId, hostId]);
+const updateChatRoomName = (roomId, name, userId) =>
+  db.query(`UPDATE chat_rooms SET name = $1 WHERE id = $2 AND EXISTS (SELECT 1 FROM chat_participants WHERE room_id = $2 AND user_id = $3) RETURNING *`, [name, roomId, userId]);
 
 const removeChatMember = (roomId, userId, hostId) =>
   db.query(`DELETE FROM chat_participants cp USING chat_rooms cr, community_broadcasts cb WHERE cp.room_id = $1 AND cp.user_id = $2 AND cp.room_id = cr.id AND cr.broadcast_id = cb.id AND cb.host_id = $3 RETURNING cp.user_id`, [roomId, userId, hostId]);
