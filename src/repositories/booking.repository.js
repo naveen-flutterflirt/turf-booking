@@ -51,7 +51,8 @@ const getCustomerBookings = (userId) =>
   db.query(
     `SELECT b.*, t.name as turf_name, t.address, t.city, t.latitude, t.longitude, s.name as sport_name,
        (SELECT image_url FROM turf_images WHERE turf_id = t.id ORDER BY sort_order ASC LIMIT 1) AS turf_image,
-       EXISTS (SELECT 1 FROM turf_feedbacks tf WHERE tf.booking_id = b.id) AS has_feedback
+       EXISTS (SELECT 1 FROM turf_feedbacks tf WHERE tf.booking_id = b.id) AS has_feedback,
+       (SELECT id FROM turf_feedbacks tf WHERE tf.booking_id = b.id LIMIT 1) AS feedback_id
      FROM bookings b JOIN turfs t ON b.turf_id = t.id JOIN sports s ON b.sport_id = s.id
      WHERE b.customer_id = $1 AND b.status != 'PAYMENT_PENDING'
      ORDER BY b.booking_date DESC, b.start_time DESC`,
