@@ -80,6 +80,25 @@ const getAllOwners = async (req, res) => {
 		});
 	}
 };
+const getOwner = async (req, res) => {
+	try {
+		const result = await ownerRepo.getOwnerById(req.params.id);
+		if (result.rows.length === 0) return res.status(404).json({
+			success: false,
+			message: 'Owner not found'
+		});
+		return res.status(200).json({
+			success: true,
+			data: result.rows[0]
+		});
+	} catch (err) {
+		console.error('Admin Get Owner Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
+};
 const deleteOwner = async (req, res) => {
 	try {
 		const ownerResult = await ownerRepo.findOwnerUserIdById(req.params.id);
@@ -715,6 +734,7 @@ module.exports = {
 	approveTurf,
 	rejectTurf,
 	getAllOwners,
+	getOwner,
 	deleteOwner,
 	deleteTurf,
 	getSportsStats,

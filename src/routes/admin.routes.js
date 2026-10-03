@@ -25,6 +25,7 @@ router.patch('/turfs/:id/reject', adminController.rejectTurf);
 router.patch('/turfs/:id/feature', adminController.toggleFeaturedTurf);
 router.delete('/turfs/:id', adminController.deleteTurf);
 router.get('/owners', adminController.getAllOwners);
+router.get('/owners/:id', adminController.getOwner);
 router.delete('/owners/:id', adminController.deleteOwner);
 router.get('/sports-stats', adminController.getSportsStats);
 router.get('/customers', adminController.getAllCustomers);
