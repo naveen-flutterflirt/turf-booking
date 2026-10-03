@@ -35,7 +35,7 @@ const getOwnerQueries = (ownerId) => db.query(`SELECT id, subject, message, admi
      FROM owner_queries WHERE owner_id = $1 ORDER BY created_at DESC`,
 	[ownerId]);
 const getOwnerById = (ownerId) => db.query(`SELECT o.id AS owner_id, o.business_name, o.created_at AS owner_created_at,
-            o.account_holder_name, o.bank_account_number, o.ifsc, o.bank_verification_status, o.payout_details_completed,
+            o.account_name, o.account_number, o.ifsc_code, o.bank_name, o.bank_verification_status, o.payout_details_completed,
             u.id AS user_id, u.name, u.email, u.phone, COUNT(t.id) AS turf_count
      FROM owners o JOIN users u ON o.user_id = u.id
      LEFT JOIN turfs t ON o.id = t.owner_id
