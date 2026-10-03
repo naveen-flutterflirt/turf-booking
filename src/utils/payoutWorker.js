@@ -11,7 +11,7 @@ const payoutWorker = new Worker('PayoutQueue', async (job) => {
     // 1. Get booking and owner details
     const bookingQuery = `
       SELECT b.id, b.total_price, b.status as payment_status, b.razorpay_payment_id,
-             t.owner_id, o.account_holder_name, o.bank_account_number, o.ifsc, o.payout_details_completed, o.user_id as owner_user_id
+             t.owner_id, o.account_name, o.account_number, o.ifsc_code, o.payout_details_completed, o.user_id as owner_user_id
       FROM bookings b
       JOIN turfs t ON b.turf_id = t.id
       JOIN owners o ON t.owner_id = o.id
@@ -38,7 +38,7 @@ const payoutWorker = new Worker('PayoutQueue', async (job) => {
        return;
     }
 
-    if (!b.payout_details_completed || !b.account_holder_name || !b.bank_account_number || !b.ifsc) {
+    if (!b.payout_details_completed || !b.account_name || !b.account_number || !b.ifsc_code) {
       console.warn(`Payout: Owner ${b.owner_id} has incomplete payout details. Creating FAILED payout record.`);
       await client.query(`
         INSERT INTO payouts (booking_id, owner_id, total_amount, platform_commission, owner_amount, status, failure_reason, idempotency_key)
@@ -66,9 +66,9 @@ const payoutWorker = new Worker('PayoutQueue', async (job) => {
     // RazorpayX Payout
     try {
       const rxResponse = await razorpayxService.createCompositePayout({
-        accountHolderName: b.account_holder_name,
-        bankAccountNumber: b.bank_account_number,
-        ifsc: b.ifsc,
+        accountHolderName: b.account_name,
+        bankAccountNumber: b.account_number,
+        ifsc: b.ifsc_code,
         amount: ownerAmountPaise,
         referenceId: bookingId,
         narration: `Turf Booking ${bookingId.substring(0,8)}`
