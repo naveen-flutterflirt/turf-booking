@@ -1,7 +1,6 @@
 const db = require('../config/db');
-
 const createTables = async () => {
-  const query = `
+	const query = `
     DROP TABLE IF EXISTS turf_feedbacks CASCADE;
     DROP TABLE IF EXISTS turf_amenities CASCADE;
     DROP TABLE IF EXISTS amenities CASCADE;
@@ -13,6 +12,11 @@ const createTables = async () => {
     DROP TABLE IF EXISTS users CASCADE;
     DROP TABLE IF EXISTS owner_queries CASCADE;
     DROP TABLE IF EXISTS app_settings CASCADE;
+    DROP TABLE IF EXISTS coupon_usages CASCADE;
+    DROP TABLE IF EXISTS coupon_usages CASCADE;
+    DROP TABLE IF EXISTS bookings CASCADE;
+    DROP TABLE IF EXISTS coupons CASCADE;
+    DROP TABLE IF EXISTS notifications CASCADE;
 
     CREATE TABLE users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,10 +37,13 @@ const createTables = async () => {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       business_name VARCHAR(255) NOT NULL,
-      account_name VARCHAR(255),
-      account_number VARCHAR(255),
-      ifsc_code VARCHAR(50),
+      account_holder_name VARCHAR(255),
+      bank_account_number VARCHAR(255),
+      ifsc VARCHAR(50),
       bank_name VARCHAR(255),
+      razorpay_linked_account_id VARCHAR(255),
+      bank_verification_status VARCHAR(50) DEFAULT 'PENDING',
+      payout_details_completed BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -112,14 +119,37 @@ const createTables = async () => {
       UNIQUE(turf_id, amenity_id)
     );
 
+    CREATE TABLE coupons (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      owner_id UUID REFERENCES owners(id) ON DELETE CASCADE,
+      allowed_user_id UUID REFERENCES users(id) ON DELETE CASCADE, -- Optional: For user-specific VIP/apology coupons
+      code VARCHAR(50) UNIQUE NOT NULL,
+      discount_type VARCHAR(20) CHECK (discount_type IN ('PERCENTAGE', 'FLAT')) NOT NULL,
+      discount_value DECIMAL(10, 2) NOT NULL,
+      max_discount_amount DECIMAL(10, 2), -- Optional max cap for percentage
+      min_booking_amount DECIMAL(10, 2), -- Optional minimum booking requirement
+      start_date TIMESTAMP NOT NULL,
+      end_date TIMESTAMP NOT NULL,
+      usage_limit INTEGER, -- Total allowed usages globally
+      user_usage_limit INTEGER DEFAULT 1, -- Allowed usages per user
+      new_users_only BOOLEAN DEFAULT FALSE,
+      status VARCHAR(20) DEFAULT 'ACTIVE',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE bookings (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       turf_id UUID NOT NULL REFERENCES turfs(id) ON DELETE CASCADE,
+      sport_id UUID NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
       customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      coupon_id UUID REFERENCES coupons(id) ON DELETE SET NULL,
       booking_date DATE NOT NULL,
       start_time TIME NOT NULL,
       end_time TIME NOT NULL,
       status VARCHAR(50) DEFAULT 'PAYMENT_PENDING',
+      subtotal DECIMAL(10, 2) NOT NULL,
+      discount_amount DECIMAL(10, 2) DEFAULT 0,
       total_price DECIMAL(10, 2) NOT NULL,
       razorpay_order_id VARCHAR(255),
       razorpay_payment_id VARCHAR(255),
@@ -127,6 +157,15 @@ const createTables = async () => {
       payment_method VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE coupon_usages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      coupon_id UUID NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      discount_applied DECIMAL(10, 2) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE turf_feedbacks (
@@ -165,16 +204,14 @@ const createTables = async () => {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
-
-  try {
-    console.log('Dropping and re-creating all tables with full schema...');
-    await db.query(query);
-    console.log('Tables created successfully!');
-  } catch (err) {
-    console.error('Error creating tables:', err);
-  } finally {
-    db.pool.end();
-  }
+	try {
+		console.log('Dropping and re-creating all tables with full schema...');
+		await db.query(query);
+		console.log('Tables created successfully!');
+	} catch (err) {
+		console.error('Error creating tables:', err);
+	} finally {
+		db.pool.end();
+	}
 };
-
 createTables();

@@ -1,10 +1,16 @@
 const db = require('../config/db');
 
-const insertBookingsPending = (client, { turfId, sportId, userId, date, slot, price, orderId }) =>
+const insertBookingsPending = (client, { turfId, sportId, userId, date, slot, price, orderId, couponId = null, subtotal, discountAmount = 0 }) =>
   client.query(
-    `INSERT INTO bookings (turf_id, sport_id, customer_id, booking_date, start_time, end_time, status, total_price, razorpay_order_id)
-     VALUES ($1, $2, $3, $4, $5, $6, 'PAYMENT_PENDING', $7, $8) RETURNING *`,
-    [turfId, sportId, userId, date, slot.start_time, slot.end_time, price, orderId]
+    `INSERT INTO bookings (turf_id, sport_id, customer_id, booking_date, start_time, end_time, status, subtotal, discount_amount, total_price, razorpay_order_id, coupon_id)
+     VALUES ($1, $2, $3, $4, $5, $6, 'PAYMENT_PENDING', $7, $8, $9, $10, $11) RETURNING *`,
+    [turfId, sportId, userId, date, slot.start_time, slot.end_time, subtotal, discountAmount, price, orderId, couponId]
+  );
+
+const recordCouponUsage = (userId, bookingId, couponId, discountApplied) =>
+  db.query(
+    `INSERT INTO coupon_usages (user_id, booking_id, coupon_id, discount_applied) VALUES ($1, $2, $3, $4)`,
+    [userId, bookingId, couponId, discountApplied]
   );
 
 const checkSlotConflicts = (client, { turfId, sportId, date, slotStarts }) =>
@@ -165,5 +171,5 @@ module.exports = {
   cancelBooking, getCustomerBookings, getOwnerBookings, getAllBookings,
   getOwnerEarnings, getBookedTurfs, getOwnerRecentBookings, getOwnerWeeklyEarnings,
   getBookingForReschedule, checkRescheduleConflict, updateBookingSchedule,
-  getAllPayments, getOwnerByBookingOrder,
+  getAllPayments, getOwnerByBookingOrder, recordCouponUsage
 };

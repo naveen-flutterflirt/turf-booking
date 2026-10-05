@@ -137,7 +137,7 @@ const getTurfSlots = async (turfId, { date, sport_id }) => {
   return slots;
 };
 
-const createBooking = async (userId, { turf_id, sport_id, date, time_slots, is_full_day }) => {
+const createBooking = async (userId, { turf_id, sport_id, date, time_slots, is_full_day, coupon_code }) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -181,7 +181,56 @@ const createBooking = async (userId, { turf_id, sport_id, date, time_slots, is_f
       await client.query('ROLLBACK'); const err = new Error('One or more selected slots have already been booked by someone else!'); err.status = 409; throw err;
     }
 
-    const totalAmount = requestedSlots.length * parseFloat(turf.price_per_hour);
+    const subtotal = requestedSlots.length * parseFloat(turf.price_per_hour);
+    let totalAmount = subtotal;
+    let finalDiscountAmount = 0;
+    let finalCouponId = null;
+
+    // --- COUPON VALIDATION DURING BOOKING ---
+    if (coupon_code) {
+      const { rows: coupons } = await client.query(`SELECT * FROM coupons WHERE code = $1 AND status = 'ACTIVE'`, [coupon_code.toUpperCase()]);
+      if (coupons.length > 0) {
+        const coupon = coupons[0];
+        const now = new Date();
+        let isValid = true;
+        
+        if (now < new Date(coupon.start_date) || now > new Date(coupon.end_date)) isValid = false;
+        if (coupon.min_booking_amount && subtotal < parseFloat(coupon.min_booking_amount)) isValid = false;
+        if (coupon.allowed_user_id && coupon.allowed_user_id !== userId) isValid = false;
+        if (coupon.owner_id && coupon.owner_id !== turf.owner_id) isValid = false;
+
+        if (isValid && coupon.new_users_only) {
+            const { rows: pastBookings } = await client.query(`SELECT count(*) FROM bookings WHERE customer_id = $1 AND status IN ('CONFIRMED', 'COMPLETED')`, [userId]);
+            if (parseInt(pastBookings[0].count) > 0) isValid = false;
+        }
+
+        if (isValid && coupon.usage_limit) {
+            const { rows: globalUsage } = await client.query(`SELECT COUNT(*) FROM coupon_usages WHERE coupon_id = $1`, [coupon.id]);
+            if (parseInt(globalUsage[0].count) >= coupon.usage_limit) isValid = false;
+        }
+
+        if (isValid && coupon.user_usage_limit) {
+            const { rows: userUsage } = await client.query(`SELECT COUNT(*) FROM coupon_usages WHERE coupon_id = $1 AND user_id = $2`, [coupon.id, userId]);
+            if (parseInt(userUsage[0].count) >= coupon.user_usage_limit) isValid = false;
+        }
+
+        if (isValid) {
+            finalCouponId = coupon.id;
+            if (coupon.discount_type === 'FLAT') {
+                finalDiscountAmount = parseFloat(coupon.discount_value);
+            } else if (coupon.discount_type === 'PERCENTAGE') {
+                finalDiscountAmount = (subtotal * parseFloat(coupon.discount_value)) / 100;
+                if (coupon.max_discount_amount && finalDiscountAmount > parseFloat(coupon.max_discount_amount)) {
+                    finalDiscountAmount = parseFloat(coupon.max_discount_amount);
+                }
+            }
+            if (finalDiscountAmount > subtotal) finalDiscountAmount = subtotal;
+            totalAmount = subtotal - finalDiscountAmount;
+        }
+      }
+    }
+    // --- END COUPON VALIDATION ---
+
     let order;
     try {
       const shortReceipt = `rcpt_${userId.substring(0, 8)}_${Date.now()}`;
@@ -203,8 +252,16 @@ const createBooking = async (userId, { turf_id, sport_id, date, time_slots, is_f
     }
 
     const bookingsCreated = [];
+    const perSlotSubtotal = parseFloat(turf.price_per_hour);
+    const perSlotDiscount = finalDiscountAmount / requestedSlots.length;
+    const perSlotTotal = totalAmount / requestedSlots.length;
+
     for (const slot of requestedSlots) {
-      const bookingRes = await bookingRepo.insertBookingsPending(client, { turfId: turf_id, sportId: sport_id, userId, date, slot, price: turf.price_per_hour, orderId: order.id });
+      const bookingRes = await bookingRepo.insertBookingsPending(client, { 
+          turfId: turf_id, sportId: sport_id, userId, date, slot, 
+          price: perSlotTotal, orderId: order.id,
+          couponId: finalCouponId, subtotal: perSlotSubtotal, discountAmount: perSlotDiscount
+      });
       bookingsCreated.push(bookingRes.rows[0]);
     }
 
@@ -225,6 +282,13 @@ const verifyPayment = async (userId, { razorpay_order_id, razorpay_payment_id, r
 
   const updateResult = await bookingRepo.confirmBookingsByOrder(userId, { razorpay_order_id, razorpay_payment_id, razorpay_signature, paymentMethod });
   if (updateResult.rows.length === 0) { const err = new Error('No bookings found for this order'); err.status = 404; throw err; }
+
+  // Save the coupon usage now that the booking is confirmed
+  for (const booking of updateResult.rows) {
+      if (booking.coupon_id) {
+          await bookingRepo.recordCouponUsage(userId, booking.id, booking.coupon_id, booking.discount_amount);
+      }
+  }
 
   const receiptResult = await bookingRepo.getBookingReceipt(razorpay_order_id);
   if (receiptResult.rows.length > 0) {

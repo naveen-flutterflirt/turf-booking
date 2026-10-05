@@ -13,6 +13,7 @@ const webhookRoutes = require('./src/routes/webhook.routes');
 const notificationRoutes = require('./src/routes/notification.routes');
 const feedbackRoutes = require('./src/routes/feedback.routes');
 const communityRoutes = require('./src/routes/community.routes');
+const couponRoutes = require('./src/routes/coupon.routes');
 const {
 	initSocket
 } = require('./src/config/socket');
@@ -100,6 +101,7 @@ app.use('/notifications', notificationRoutes);
 app.use('/owner', ownerRoutes);
 app.use('/admin', adminRoutes);
 app.use('/community', communityRoutes);
+app.use('/coupons', couponRoutes);
 // --- GLOBAL ERROR HANDLER ---
 // Catch all unhandled errors so Express doesn't leak HTML stack traces
 app.use((err, req, res, next) => {
