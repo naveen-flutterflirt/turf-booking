@@ -2,6 +2,7 @@ const turfService = require('../services/turf.service');
 const ownerRepo = require('../repositories/owner.repository');
 const userRepo = require('../repositories/user.repository');
 const db = require('../config/db');
+const bcrypt = require('bcryptjs');
 const createTurf = async (req, res) => {
 	const {
 		name,
@@ -477,6 +478,42 @@ const getOwnerTurfById = async (req, res) => {
 	}
 };
 
+const changePassword = async (req, res) => {
+	const {
+		current_password,
+		new_password
+	} = req.body;
+	if (!current_password || !new_password) return res.status(400).json({
+		success: false,
+		message: 'Current password and new password are required'
+	});
+	try {
+		const userResult = await userRepo.getUserPasswordHash(req.user.id);
+		if (userResult.rows.length === 0) return res.status(404).json({
+			success: false,
+			message: 'User not found'
+		});
+		const isMatch = await bcrypt.compare(current_password, userResult.rows[0].password_hash);
+		if (!isMatch) return res.status(401).json({
+			success: false,
+			message: 'Incorrect current password'
+		});
+		const salt = await bcrypt.genSalt(10);
+		const new_password_hash = await bcrypt.hash(new_password, salt);
+		await userRepo.changeUserPassword(req.user.id, new_password_hash);
+		return res.status(200).json({
+			success: true,
+			message: 'Password changed successfully'
+		});
+	} catch (err) {
+		console.error('Owner Change Password Error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Internal server error'
+		});
+	}
+};
+
 module.exports = {
 	createTurf,
 	getOwnerTurfs,
@@ -492,5 +529,6 @@ module.exports = {
 	submitQuery,
 	getQueries,
 	getAccountDetails,
-	updateAccountDetails
+	updateAccountDetails,
+	changePassword
 };

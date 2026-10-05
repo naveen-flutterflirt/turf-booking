@@ -26,4 +26,5 @@ router.get('/queries', ownerController.getQueries);
 router.get('/account-details', ownerController.getAccountDetails);
 router.post('/account-details', ownerController.updateAccountDetails);
 router.put('/account-details', ownerController.updateAccountDetails);
+router.put('/change-password', ownerController.changePassword);
 module.exports = router;
