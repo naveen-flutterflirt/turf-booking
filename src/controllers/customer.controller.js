@@ -100,7 +100,8 @@ const createBooking = async (req, res) => {
 		sport_id,
 		date,
 		time_slots,
-		is_full_day
+		is_full_day,
+		coupon_code
 	} = req.body;
 	if (!turf_id || !sport_id || !date) return res.status(400).json({
 		success: false,
@@ -118,7 +119,8 @@ const createBooking = async (req, res) => {
 			sport_id,
 			date,
 			time_slots,
-			is_full_day
+			is_full_day,
+			coupon_code
 		});
 		return res.status(201).json({
 			success: true,
