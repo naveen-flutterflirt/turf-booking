@@ -202,4 +202,15 @@ const deleteTurfImage = async (userId, turfId, imageId) => {
   await turfRepo.deleteTurfImage(imageId);
 };
 
-module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage };
+const getOwnerTurfById = async (userId, turfId) => {
+  const ownerResult = await ownerRepo.findOwnerByUserId(userId);
+  if (ownerResult.rows.length === 0) { const err = new Error('Owner profile not found'); err.status = 404; throw err; }
+  
+  const turfCheck = await turfRepo.checkTurfOwnership(turfId, ownerResult.rows[0].id);
+  if (turfCheck.rows.length === 0) { const err = new Error('Turf not found or you do not have permission'); err.status = 404; throw err; }
+
+  const fullTurf = await turfRepo.getFullTurf(turfId);
+  return fullTurf.rows[0];
+};
+
+module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage, getOwnerTurfById };

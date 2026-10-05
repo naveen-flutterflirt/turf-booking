@@ -461,9 +461,26 @@ const updateAccountDetails = async (req, res) => {
 	}
 };
 
+const getOwnerTurfById = async (req, res) => {
+	try {
+		const data = await turfService.getOwnerTurfById(req.user.id, req.params.id);
+		return res.status(200).json({
+			success: true,
+			data
+		});
+	} catch (err) {
+		console.error('Get Owner Turf By Id Error:', err);
+		return res.status(err.status || 500).json({
+			success: false,
+			message: err.message || 'Internal server error'
+		});
+	}
+};
+
 module.exports = {
 	createTurf,
 	getOwnerTurfs,
+	getOwnerTurfById,
 	updateTurf,
 	deleteTurf,
 	addTurfImage,
