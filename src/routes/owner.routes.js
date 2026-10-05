@@ -12,6 +12,7 @@ router.use(authenticateUser);
 router.use(authorizeRole(['OWNER', 'ADMIN']));
 router.post('/turfs', ownerController.createTurf);
 router.get('/turfs', ownerController.getOwnerTurfs);
+router.get('/turfs/:id', ownerController.getOwnerTurfById);
 router.post('/turfs/:id/images', ownerController.addTurfImage);
 router.put('/turfs/:id', ownerController.updateTurf);
 router.delete('/turfs/:id', ownerController.deleteTurf);

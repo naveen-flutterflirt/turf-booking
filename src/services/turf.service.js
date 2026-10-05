@@ -128,16 +128,39 @@ const updateTurf = async (userId, turfId, body) => {
     }
   }
 
-  // Append images
+  // Sync images
   let parsedImages = images;
   if (typeof images === 'string') { try { parsedImages = JSON.parse(images); } catch (e) { parsedImages = [images]; } }
-  if (parsedImages && Array.isArray(parsedImages) && parsedImages.length > 0) {
-    const orderRes = await turfRepo.getImageMaxOrder(turfId);
-    let currentOrder = parseInt(orderRes.rows[0].max_order) + 1;
-    for (const img of parsedImages) {
-      if (!img || typeof img.url !== 'string' || !img.url.trim()) continue;
-      await turfRepo.insertTurfImageSimple(turfId, { url: img.url, key: img.key || null, currentOrder });
-      currentOrder++;
+  if (parsedImages && Array.isArray(parsedImages)) {
+    const existingImagesRes = await db.query('SELECT * FROM turf_images WHERE turf_id = $1', [turfId]);
+    const existingImages = existingImagesRes.rows;
+    const incomingUrls = parsedImages.map(img => img.url).filter(Boolean);
+    
+    // Find images to delete
+    const imagesToDelete = existingImages.filter(extImg => !incomingUrls.includes(extImg.image_url));
+    if (imagesToDelete.length > 0) {
+      for (const img of imagesToDelete) {
+        if (img.s3_key) {
+          try {
+            const s3Client = new S3Client({ region: process.env.AWS_REGION, credentials: { accessKeyId: process.env.AWS_ACCESS_KEY_ID, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY } });
+            await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET || process.env.AWS_S3_AVATAR_BUCKET, Key: img.s3_key }));
+          } catch (e) { console.error('S3 Delete error:', e); }
+        }
+        await db.query('DELETE FROM turf_images WHERE id = $1', [img.id]);
+      }
+    }
+    
+    // Insert new images
+    const existingUrls = existingImages.map(img => img.image_url);
+    const imagesToInsert = parsedImages.filter(img => img.url && !existingUrls.includes(img.url));
+    if (imagesToInsert.length > 0) {
+      const orderRes = await turfRepo.getImageMaxOrder(turfId);
+      let currentOrder = parseInt(orderRes.rows[0].max_order) + 1;
+      for (const img of imagesToInsert) {
+        if (!img || typeof img.url !== 'string' || !img.url.trim()) continue;
+        await turfRepo.insertTurfImageSimple(turfId, { url: img.url, key: img.key || null, currentOrder });
+        currentOrder++;
+      }
     }
   }
 
@@ -179,4 +202,15 @@ const deleteTurfImage = async (userId, turfId, imageId) => {
   await turfRepo.deleteTurfImage(imageId);
 };
 
-module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage };
+const getOwnerTurfById = async (userId, turfId) => {
+  const ownerResult = await ownerRepo.findOwnerByUserId(userId);
+  if (ownerResult.rows.length === 0) { const err = new Error('Owner profile not found'); err.status = 404; throw err; }
+  
+  const turfCheck = await turfRepo.checkTurfOwnership(turfId, ownerResult.rows[0].id);
+  if (turfCheck.rows.length === 0) { const err = new Error('Turf not found or you do not have permission'); err.status = 404; throw err; }
+
+  const fullTurf = await turfRepo.getFullTurf(turfId);
+  return fullTurf.rows[0];
+};
+
+module.exports = { createTurf, getOwnerTurfs, updateTurf, deleteTurf, addTurfImage, deleteTurfImage, getOwnerTurfById };

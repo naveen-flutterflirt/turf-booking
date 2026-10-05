@@ -173,8 +173,8 @@ exports.getAvailableCoupons = async (req, res) => {
                    min_booking_amount, start_date, end_date, new_users_only
             FROM coupons 
             WHERE status = 'ACTIVE' 
-            AND end_date >= CURRENT_TIMESTAMP
-            AND start_date <= CURRENT_TIMESTAMP
+            AND end_date >= CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
+            AND start_date <= CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
             AND (usage_limit IS NULL OR id NOT IN (
                 SELECT coupon_id FROM coupon_usages GROUP BY coupon_id HAVING COUNT(*) >= coupons.usage_limit
             ))
