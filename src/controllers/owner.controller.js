@@ -514,6 +514,106 @@ const changePassword = async (req, res) => {
 	}
 };
 
+const getOwnerCustomers = async (req, res) => {
+	try {
+        const ownerResult = await db.query('SELECT id FROM owners WHERE user_id = $1', [req.user.id]);
+        if (ownerResult.rows.length === 0) return res.status(404).json({ success: false, message: 'Owner profile not found' });
+        const ownerId = ownerResult.rows[0].id;
+
+        const query = `
+            SELECT u.id, u.name, u.email, u.phone, COUNT(b.id) as total_bookings
+            FROM bookings b
+            JOIN turfs t ON b.turf_id = t.id
+            JOIN users u ON b.customer_id = u.id
+            WHERE t.owner_id = $1 AND b.status IN ('CONFIRMED', 'COMPLETED')
+            GROUP BY u.id, u.name, u.email, u.phone
+            ORDER BY u.name ASC
+        `;
+        const result = await db.query(query, [ownerId]);
+        return res.status(200).json({ success: true, data: result.rows });
+	} catch (err) {
+		console.error('Get Owner Customers Error:', err);
+		return res.status(500).json({ success: false, message: 'Internal server error' });
+	}
+};
+
+const getOwnerCoupons = async (req, res) => {
+    try {
+        const ownerResult = await db.query('SELECT id FROM owners WHERE user_id = $1', [req.user.id]);
+        if (ownerResult.rows.length === 0) return res.status(404).json({ success: false, message: 'Owner profile not found' });
+        
+        const result = await db.query(`
+            SELECT c.*, u.name as allowed_user_name 
+            FROM coupons c 
+            LEFT JOIN users u ON c.allowed_user_id = u.id
+            WHERE c.owner_id = $1 
+            ORDER BY c.created_at DESC
+        `, [ownerResult.rows[0].id]);
+        
+        return res.status(200).json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error('Get Owner Coupons Error:', err);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+const createOwnerCoupon = async (req, res) => {
+    try {
+        const ownerResult = await db.query('SELECT id FROM owners WHERE user_id = $1', [req.user.id]);
+        if (ownerResult.rows.length === 0) return res.status(404).json({ success: false, message: 'Owner profile not found' });
+        const ownerId = ownerResult.rows[0].id;
+
+        const {
+            code, discount_type, discount_value, max_discount_amount, 
+            min_booking_amount, start_date, end_date, usage_limit, 
+            user_usage_limit = 1, new_users_only = false, allowed_user_id = null
+        } = req.body;
+
+        if (!code || !discount_type || !discount_value || !start_date || !end_date) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        const query = `
+            INSERT INTO coupons (
+                code, discount_type, discount_value, max_discount_amount, 
+                min_booking_amount, start_date, end_date, usage_limit, 
+                user_usage_limit, new_users_only, owner_id, allowed_user_id
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+            ) RETURNING *
+        `;
+        const values = [
+            code.toUpperCase(), discount_type, discount_value, max_discount_amount || null,
+            min_booking_amount || null, start_date, end_date, usage_limit || null,
+            user_usage_limit, new_users_only, ownerId, allowed_user_id
+        ];
+
+        const { rows } = await db.query(query, values);
+        res.status(201).json({ success: true, message: 'Coupon created successfully', data: rows[0] });
+    } catch (error) {
+        console.error('Error creating owner coupon:', error);
+        if (error.code === '23505') {
+            return res.status(400).json({ success: false, message: 'Coupon code already exists' });
+        }
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+const deleteOwnerCoupon = async (req, res) => {
+    try {
+        const ownerResult = await db.query('SELECT id FROM owners WHERE user_id = $1', [req.user.id]);
+        if (ownerResult.rows.length === 0) return res.status(404).json({ success: false, message: 'Owner profile not found' });
+        
+        const result = await db.query('DELETE FROM coupons WHERE id = $1 AND owner_id = $2 RETURNING id', [req.params.id, ownerResult.rows[0].id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Coupon not found or unauthorized' });
+        
+        return res.status(200).json({ success: true, message: 'Coupon deleted successfully' });
+    } catch (err) {
+        console.error('Delete Owner Coupon Error:', err);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 module.exports = {
 	createTurf,
 	getOwnerTurfs,
@@ -530,5 +630,9 @@ module.exports = {
 	getQueries,
 	getAccountDetails,
 	updateAccountDetails,
-	changePassword
+	changePassword,
+    getOwnerCustomers,
+    getOwnerCoupons,
+    createOwnerCoupon,
+    deleteOwnerCoupon
 };
