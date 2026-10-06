@@ -27,4 +27,9 @@ router.get('/account-details', ownerController.getAccountDetails);
 router.post('/account-details', ownerController.updateAccountDetails);
 router.put('/account-details', ownerController.updateAccountDetails);
 router.put('/change-password', ownerController.changePassword);
+
+router.get('/customers', ownerController.getOwnerCustomers);
+router.get('/coupons', ownerController.getOwnerCoupons);
+router.post('/coupons', ownerController.createOwnerCoupon);
+router.delete('/coupons/:id', ownerController.deleteOwnerCoupon);
 module.exports = router;
