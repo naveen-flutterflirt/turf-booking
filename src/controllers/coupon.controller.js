@@ -75,8 +75,23 @@ exports.validateCoupon = async (req, res) => {
         const coupon = coupons[0];
 
         // 2. Check Validity Dates
+        // Get current time in Asia/Kolkata
         const now = new Date();
-        if (now < new Date(coupon.start_date) || now > new Date(coupon.end_date)) {
+        const kolkataTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+        
+        const startDate = new Date(coupon.start_date);
+        const endDate = new Date(coupon.end_date);
+        
+        // If the DB returned UTC time that was actually meant to be IST, we might need to compare directly
+        // Let's use string comparison or adjust the check.
+        // The safest way is to use the DB to check, but let's just do it in JS for now:
+        const checkQuery = await db.query(`
+            SELECT 
+                $1::timestamp <= CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata' as is_started,
+                $2::timestamp >= CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata' as is_not_expired
+        `, [coupon.start_date, coupon.end_date]);
+        
+        if (!checkQuery.rows[0].is_started || !checkQuery.rows[0].is_not_expired) {
             return res.status(400).json({ success: false, message: 'This coupon is expired or not yet active.' });
         }
 
