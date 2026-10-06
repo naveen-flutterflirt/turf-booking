@@ -44,7 +44,7 @@ const getOwnerTurfs = (ownerId) =>
   db.query(
     `SELECT t.*,
        COALESCE((SELECT COUNT(b.id) FROM bookings b WHERE b.turf_id = t.id AND b.status = 'CONFIRMED'), 0)::int AS bookings_count,
-       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id), '[]') AS sports,
+       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name, 'is_active', ts.is_active)) FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id), '[]') AS sports,
        COALESCE((SELECT json_agg(json_build_object('id', a.id, 'name', a.name)) FROM turf_amenities ta JOIN amenities a ON ta.amenity_id = a.id WHERE ta.turf_id = t.id), '[]') AS amenities,
        COALESCE((SELECT json_agg(json_build_object('id', ti.id, 'image_url', ti.image_url, 's3_key', ti.s3_key, 'sort_order', ti.sort_order) ORDER BY ti.sort_order ASC) FROM turf_images ti WHERE ti.turf_id = t.id), '[]') AS images
      FROM turfs t WHERE t.owner_id = $1 ORDER BY t.created_at DESC`,
@@ -80,7 +80,7 @@ const deleteTurfAmenities = (turfId) =>
 const getFullTurf = (turfId) =>
   db.query(
     `SELECT t.*,
-       (SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]') FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id) AS sports,
+       (SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name, 'is_active', ts.is_active)), '[]') FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id) AS sports,
        (SELECT COALESCE(json_agg(json_build_object('id', a.id, 'name', a.name)), '[]') FROM turf_amenities ta JOIN amenities a ON ta.amenity_id = a.id WHERE ta.turf_id = t.id) AS amenities,
        (SELECT COALESCE(json_agg(json_build_object('id', ti.id, 'image_url', ti.image_url, 's3_key', ti.s3_key, 'sort_order', ti.sort_order) ORDER BY ti.sort_order ASC), '[]') FROM turf_images ti WHERE ti.turf_id = t.id) AS images
      FROM turfs t WHERE t.id = $1`,
@@ -121,7 +121,7 @@ const lockTurfForUpdate = (client, turfId) =>
 const getAllTurfs = () =>
   db.query(
     `SELECT t.*, o.business_name,
-       (SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]') FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id) AS sports,
+       (SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name, 'is_active', ts.is_active)), '[]') FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id) AS sports,
        (SELECT COALESCE(json_agg(json_build_object('id', a.id, 'name', a.name)), '[]') FROM turf_amenities ta JOIN amenities a ON ta.amenity_id = a.id WHERE ta.turf_id = t.id) AS amenities,
        (SELECT COALESCE(json_agg(json_build_object('id', ti.id, 'image_url', ti.image_url, 'sort_order', ti.sort_order) ORDER BY ti.sort_order ASC), '[]') FROM turf_images ti WHERE ti.turf_id = t.id) AS images
      FROM turfs t JOIN owners o ON t.owner_id = o.id ORDER BY t.created_at DESC`
@@ -143,7 +143,7 @@ const getActiveTurfStats = (ownerId) =>
   db.query(`SELECT COUNT(id) AS count FROM turfs WHERE owner_id = $1 AND status = 'ACTIVE' AND is_open = TRUE`, [ownerId]);
 
 const checkSportInTurf = (turfId, sportId) =>
-  db.query('SELECT 1 FROM turf_sports WHERE turf_id = $1 AND sport_id = $2', [turfId, sportId]);
+  db.query('SELECT 1 FROM turf_sports WHERE turf_id = $1 AND sport_id = $2 AND is_active = TRUE', [turfId, sportId]);
 
 module.exports = {
   insertTurf, findSportByName, findAmenityByName, insertAmenity,

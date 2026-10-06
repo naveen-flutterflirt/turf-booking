@@ -109,6 +109,7 @@ const createTables = async () => {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       turf_id UUID NOT NULL REFERENCES turfs(id) ON DELETE CASCADE,
       sport_id UUID NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
+      is_active BOOLEAN DEFAULT TRUE,
       UNIQUE(turf_id, sport_id)
     );
 

@@ -100,6 +100,14 @@ exports.validateCoupon = async (req, res) => {
             return res.status(400).json({ success: false, message: `Minimum booking value must be ₹${coupon.min_booking_amount}` });
         }
 
+        // 3.5 Check Owner specific coupon
+        if (coupon.owner_id) {
+            const turfQuery = await db.query('SELECT owner_id FROM turfs WHERE id = $1', [turf_id]);
+            if (turfQuery.rows.length === 0 || turfQuery.rows[0].owner_id !== coupon.owner_id) {
+                return res.status(400).json({ success: false, message: 'This coupon is not valid for this turf.' });
+            }
+        }
+
         // 4. Check Allowed User (VIP Coupon)
         if (coupon.allowed_user_id && coupon.allowed_user_id !== customerId) {
             return res.status(400).json({ success: false, message: 'This coupon is not valid for your account.' });

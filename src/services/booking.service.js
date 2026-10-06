@@ -87,7 +87,7 @@ const getActiveTurfs = async (query) => {
     (SELECT COALESCE(AVG(rating), 0)::numeric(10,1) FROM turf_feedbacks WHERE turf_id = t.id) AS average_rating,
     (SELECT COUNT(id) FROM turf_feedbacks WHERE turf_id = t.id) AS total_reviews,
     (SELECT COALESCE(json_agg(f.obj), '[]') FROM LATERAL (SELECT json_build_object('id', tf.id, 'rating', tf.rating, 'comment', tf.comment, 'image1_url', tf.image1_url, 'image2_url', tf.image2_url, 'created_at', tf.created_at, 'customer_name', u.name) AS obj FROM turf_feedbacks tf JOIN users u ON tf.customer_id = u.id WHERE tf.turf_id = t.id ORDER BY tf.created_at DESC LIMIT 3) f) AS feedbacks,
-    (SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]') FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id${sportSubqueryFilter}) AS sports,
+    (SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name, 'is_active', ts.is_active)), '[]') FROM turf_sports ts JOIN sports s ON ts.sport_id = s.id WHERE ts.turf_id = t.id${sportSubqueryFilter}) AS sports,
     (SELECT COALESCE(json_agg(json_build_object('id', a.id, 'name', a.name)), '[]') FROM turf_amenities ta JOIN amenities a ON ta.amenity_id = a.id WHERE ta.turf_id = t.id) AS amenities,
     (SELECT COALESCE(json_agg(json_build_object('id', ti.id, 'image_url', ti.image_url, 's3_key', ti.s3_key, 'sort_order', ti.sort_order) ORDER BY ti.sort_order ASC), '[]') FROM turf_images ti WHERE ti.turf_id = t.id) AS images
     FROM turfs t ${whereClause} ${orderByClause} ${paginationClause}`;
@@ -188,13 +188,18 @@ const createBooking = async (userId, { turf_id, sport_id, date, time_slots, is_f
 
     // --- COUPON VALIDATION DURING BOOKING ---
     if (coupon_code) {
-      const { rows: coupons } = await client.query(`SELECT * FROM coupons WHERE code = $1 AND status = 'ACTIVE'`, [coupon_code.toUpperCase()]);
+      const { rows: coupons } = await client.query(`
+          SELECT *, 
+                 (start_date <= CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') as is_started,
+                 (end_date >= CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') as is_not_expired
+          FROM coupons WHERE code = $1 AND status = 'ACTIVE'
+      `, [coupon_code.toUpperCase()]);
+      
       if (coupons.length > 0) {
         const coupon = coupons[0];
-        const now = new Date();
         let isValid = true;
         
-        if (now < new Date(coupon.start_date) || now > new Date(coupon.end_date)) isValid = false;
+        if (!coupon.is_started || !coupon.is_not_expired) isValid = false;
         if (coupon.min_booking_amount && subtotal < parseFloat(coupon.min_booking_amount)) isValid = false;
         if (coupon.allowed_user_id && coupon.allowed_user_id !== userId) isValid = false;
         if (coupon.owner_id && coupon.owner_id !== turf.owner_id) isValid = false;

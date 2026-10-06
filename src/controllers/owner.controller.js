@@ -614,6 +614,29 @@ const deleteOwnerCoupon = async (req, res) => {
     }
 };
 
+const toggleSportStatus = async (req, res) => {
+    const { id: turfId, sportId } = req.params;
+    try {
+        const ownerQuery = await db.query('SELECT 1 FROM turfs t JOIN owners o ON t.owner_id = o.id WHERE t.id = $1 AND o.user_id = $2', [turfId, req.user.id]);
+        if (ownerQuery.rows.length === 0) {
+            return res.status(403).json({ success: false, message: 'Not authorized to modify this turf' });
+        }
+        
+        const sportCheck = await db.query('SELECT is_active FROM turf_sports WHERE turf_id = $1 AND sport_id = $2', [turfId, sportId]);
+        if (sportCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sport not found in this turf' });
+        }
+        
+        const newStatus = !sportCheck.rows[0].is_active;
+        await db.query('UPDATE turf_sports SET is_active = $1 WHERE turf_id = $2 AND sport_id = $3', [newStatus, turfId, sportId]);
+        
+        return res.status(200).json({ success: true, message: `Sport status updated to ${newStatus ? 'ACTIVE' : 'INACTIVE'}`, is_active: newStatus });
+    } catch (err) {
+        console.error('Toggle Sport Status Error:', err);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 module.exports = {
 	createTurf,
 	getOwnerTurfs,
@@ -634,5 +657,6 @@ module.exports = {
     getOwnerCustomers,
     getOwnerCoupons,
     createOwnerCoupon,
-    deleteOwnerCoupon
+    deleteOwnerCoupon,
+    toggleSportStatus
 };

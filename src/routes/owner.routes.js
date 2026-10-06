@@ -17,6 +17,7 @@ router.post('/turfs/:id/images', ownerController.addTurfImage);
 router.put('/turfs/:id', ownerController.updateTurf);
 router.delete('/turfs/:id', ownerController.deleteTurf);
 router.delete('/turfs/:id/images/:imageId', ownerController.deleteTurfImage);
+router.patch('/turfs/:id/sports/:sportId/toggle', ownerController.toggleSportStatus);
 router.get('/bookings', ownerController.getOwnerBookings);
 router.get('/dashboard', ownerController.getOwnerDashboardStats);
 router.get('/profile', ownerController.getOwnerProfile);
