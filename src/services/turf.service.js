@@ -20,7 +20,7 @@ const createTurf = async (userId, body) => {
     }
     const ownerId = ownerResult.rows[0].id;
 
-    const turfResult = await turfRepo.insertTurf(client, [ownerId, name, description, address, city, state, pincode, latitude || null, longitude || null, price_per_hour, opening_time, closing_time]);
+    const turfResult = await turfRepo.insertTurf(client, [ownerId, name, description, address, city, state, pincode, latitude || null, longitude || null, price_per_hour, opening_time, closing_time, body.allow_events !== undefined ? body.allow_events : true, body.event_price || 1500.00]);
     const newTurf = turfResult.rows[0];
 
     // Link sports
@@ -97,7 +97,7 @@ const updateTurf = async (userId, turfId, body) => {
   const turfCheck = await turfRepo.checkTurfOwnership(turfId, ownerId);
   if (turfCheck.rows.length === 0) { const err = new Error('Turf not found or you do not have permission to edit it'); err.status = 404; throw err; }
 
-  await turfRepo.updateTurf(turfId, ownerId, { name, description, address, city, state, pincode, latitude, longitude, price_per_hour, opening_time, closing_time, is_open });
+  await turfRepo.updateTurf(turfId, ownerId, { name, description, address, city, state, pincode, latitude, longitude, price_per_hour, opening_time, closing_time, is_open, allow_events: body.allow_events, event_price: body.event_price });
 
   // Update sports
   if (sports && Array.isArray(sports)) {
