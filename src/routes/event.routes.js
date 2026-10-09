@@ -37,8 +37,8 @@ router.put('/:eventId/participants/:participantId/approve', eventController.appr
 router.put('/:eventId/participants/:participantId/reject', eventController.rejectParticipant);
 
 // --- OWNER ROUTES ---
-// Get pending events for owner's turfs
-router.get('/owner/pending', eventController.getOwnerPendingEvents);
+// Get all events for owner's turfs
+router.get('/owner/all', eventController.getOwnerEvents);
 
 // Owner approves or rejects an event
 router.put('/owner/:id/status', eventController.ownerApproveEvent);
