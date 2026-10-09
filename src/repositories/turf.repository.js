@@ -2,8 +2,8 @@ const db = require('../config/db');
 
 const insertTurf = (client, values) =>
   client.query(
-    `INSERT INTO turfs (owner_id, name, description, address, city, state, pincode, latitude, longitude, price_per_hour, opening_time, closing_time)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+    `INSERT INTO turfs (owner_id, name, description, address, city, state, pincode, latitude, longitude, price_per_hour, opening_time, closing_time, allow_events, event_price)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
     values
   );
 
@@ -66,8 +66,9 @@ const updateTurf = (id, ownerId, fields) =>
        address = COALESCE($3, address), city = COALESCE($4, city), state = COALESCE($5, state),
        pincode = COALESCE($6, pincode), latitude = COALESCE($7, latitude), longitude = COALESCE($8, longitude),
        price_per_hour = COALESCE($9, price_per_hour), opening_time = COALESCE($10, opening_time),
-       closing_time = COALESCE($11, closing_time), is_open = COALESCE($12, is_open), updated_at = CURRENT_TIMESTAMP
-     WHERE id = $13 AND owner_id = $14 RETURNING *`,
+       closing_time = COALESCE($11, closing_time), is_open = COALESCE($12, is_open),
+       allow_events = COALESCE($13, allow_events), event_price = COALESCE($14, event_price), updated_at = CURRENT_TIMESTAMP
+     WHERE id = $15 AND owner_id = $16 RETURNING *`,
     [...Object.values(fields), id, ownerId]
   );
 

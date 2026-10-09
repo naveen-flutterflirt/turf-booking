@@ -1,6 +1,8 @@
 const db = require('../config/db');
 const createTables = async () => {
 	const query = `
+    DROP TABLE IF EXISTS event_participants CASCADE;
+    DROP TABLE IF EXISTS events CASCADE;
     DROP TABLE IF EXISTS turf_feedbacks CASCADE;
     DROP TABLE IF EXISTS turf_amenities CASCADE;
     DROP TABLE IF EXISTS amenities CASCADE;
@@ -12,7 +14,6 @@ const createTables = async () => {
     DROP TABLE IF EXISTS users CASCADE;
     DROP TABLE IF EXISTS owner_queries CASCADE;
     DROP TABLE IF EXISTS app_settings CASCADE;
-    DROP TABLE IF EXISTS coupon_usages CASCADE;
     DROP TABLE IF EXISTS coupon_usages CASCADE;
     DROP TABLE IF EXISTS bookings CASCADE;
     DROP TABLE IF EXISTS coupons CASCADE;
@@ -76,6 +77,8 @@ const createTables = async () => {
       status VARCHAR(50) DEFAULT 'PENDING',
       is_open BOOLEAN DEFAULT TRUE,
       is_featured BOOLEAN DEFAULT FALSE,
+      allow_events BOOLEAN DEFAULT FALSE,
+      event_price DECIMAL(10, 2) DEFAULT 0.00,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -203,6 +206,34 @@ const createTables = async () => {
       play_store_url TEXT,
       app_store_url TEXT,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      turf_id UUID NOT NULL REFERENCES turfs(id) ON DELETE CASCADE,
+      creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sport_id UUID NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
+      date DATE NOT NULL,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      max_players INTEGER NOT NULL,
+      total_price DECIMAL(10, 2) NOT NULL,
+      price_per_person DECIMAL(10, 2) NOT NULL,
+      upi_id VARCHAR(255) NOT NULL,
+      status VARCHAR(50) DEFAULT 'OPEN',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE event_participants (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      payment_transaction_id VARCHAR(255),
+      status VARCHAR(50) DEFAULT 'PENDING',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(event_id, user_id)
     );
   `;
 	try {
