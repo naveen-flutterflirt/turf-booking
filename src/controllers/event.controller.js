@@ -2,6 +2,7 @@ const db = require('../config/db');
 const razorpayService = require('../services/razorpay.service');
 const bookingRepo = require('../repositories/booking.repository');
 const turfRepo = require('../repositories/turf.repository');
+//create event
 exports.createEvent = async (req, res) => {
 	try {
 		const {
