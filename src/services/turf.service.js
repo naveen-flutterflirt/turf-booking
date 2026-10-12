@@ -24,25 +24,52 @@ const createTurf = async (userId, body) => {
     const newTurf = turfResult.rows[0];
 
     // Link sports
-    if (sports && Array.isArray(sports) && sports.length > 0) {
-      for (const sportItem of sports) {
+    let parsedSports = sports;
+    if (typeof sports === 'string') {
+      try { parsedSports = JSON.parse(sports); }
+      catch (e) { parsedSports = sports.split(',').map(s => s.trim()).filter(Boolean); }
+    }
+    if (parsedSports && Array.isArray(parsedSports) && parsedSports.length > 0) {
+      for (let sportItem of parsedSports) {
+        if (typeof sportItem === 'object' && sportItem !== null) { sportItem = sportItem.id || sportItem.name; }
+        if (typeof sportItem === 'string') sportItem = sportItem.trim();
+        if (!sportItem) continue;
+
         let sportId = sportItem;
         if (!UUID_REGEX.test(sportItem)) {
           const sportResult = await turfRepo.findSportByName(client, sportItem);
-          if (sportResult.rows.length > 0) { sportId = sportResult.rows[0].id; } else { continue; }
+          if (sportResult.rows.length > 0) {
+            sportId = sportResult.rows[0].id;
+          } else {
+            const newSport = await turfRepo.insertSport(client, sportItem);
+            sportId = newSport.rows[0].id;
+          }
         }
         await turfRepo.linkTurfSport(client, newTurf.id, sportId);
       }
     }
 
     // Link amenities
-    if (amenities && Array.isArray(amenities) && amenities.length > 0) {
-      for (const amenityItem of amenities) {
+    let parsedAmenities = amenities;
+    if (typeof amenities === 'string') {
+      try { parsedAmenities = JSON.parse(amenities); }
+      catch (e) { parsedAmenities = amenities.split(',').map(a => a.trim()).filter(Boolean); }
+    }
+    if (parsedAmenities && Array.isArray(parsedAmenities) && parsedAmenities.length > 0) {
+      for (let amenityItem of parsedAmenities) {
+        if (typeof amenityItem === 'object' && amenityItem !== null) { amenityItem = amenityItem.id || amenityItem.name; }
+        if (typeof amenityItem === 'string') amenityItem = amenityItem.trim();
+        if (!amenityItem) continue;
+
         let amenityId = amenityItem;
         if (!UUID_REGEX.test(amenityItem)) {
           const amenityResult = await turfRepo.findAmenityByName(client, amenityItem);
-          if (amenityResult.rows.length > 0) { amenityId = amenityResult.rows[0].id; }
-          else { const newAmenity = await turfRepo.insertAmenity(client, amenityItem); amenityId = newAmenity.rows[0].id; }
+          if (amenityResult.rows.length > 0) {
+            amenityId = amenityResult.rows[0].id;
+          } else {
+            const newAmenity = await turfRepo.insertAmenity(client, amenityItem);
+            amenityId = newAmenity.rows[0].id;
+          }
         }
         await turfRepo.linkTurfAmenity(client, newTurf.id, amenityId);
       }
@@ -56,8 +83,10 @@ const createTurf = async (userId, body) => {
     if (parsedImages && Array.isArray(parsedImages)) {
       for (const img of parsedImages) {
         if (sortOrder >= 10) break;
-        if (!img || typeof img.url !== 'string' || !img.url.trim()) continue;
-        const imgRes = await turfRepo.insertTurfImage(client, { turfId: newTurf.id, url: img.url, key: img.key || null, sortOrder });
+        const imgUrl = (typeof img === 'string' ? img : (img?.url || img?.image_url || '')).trim();
+        const imgKey = typeof img === 'object' ? (img?.key || img?.s3_key || null) : null;
+        if (!imgUrl) continue;
+        const imgRes = await turfRepo.insertTurfImage(client, { turfId: newTurf.id, url: imgUrl, key: imgKey, sortOrder });
         uploadedImages.push(imgRes.rows[0]);
         sortOrder++;
       }
@@ -100,29 +129,60 @@ const updateTurf = async (userId, turfId, body) => {
   await turfRepo.updateTurf(turfId, ownerId, { name, description, address, city, state, pincode, latitude, longitude, price_per_hour, opening_time, closing_time, is_open });
 
   // Update sports
-  if (sports && Array.isArray(sports)) {
+  let parsedSports = sports;
+  if (typeof sports === 'string') {
+    try { parsedSports = JSON.parse(sports); }
+    catch (e) { parsedSports = sports.split(',').map(s => s.trim()).filter(Boolean); }
+  }
+  if (parsedSports && Array.isArray(parsedSports)) {
     await turfRepo.deleteTurfSports(turfId);
-    for (let sportItem of sports) {
+    for (let sportItem of parsedSports) {
       if (typeof sportItem === 'object' && sportItem !== null) { sportItem = sportItem.id || sportItem.name; }
+      if (typeof sportItem === 'string') sportItem = sportItem.trim();
+      if (!sportItem) continue;
+
       let sportId = sportItem;
       if (!UUID_REGEX.test(sportItem)) {
         const sportResult = await db.query('SELECT id FROM sports WHERE name ILIKE $1', [sportItem]);
-        if (sportResult.rows.length > 0) { sportId = sportResult.rows[0].id; } else { continue; }
+        if (sportResult.rows.length > 0) {
+          sportId = sportResult.rows[0].id;
+        } else {
+          const newSport = await db.query(
+            'INSERT INTO sports (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id',
+            [sportItem]
+          );
+          sportId = newSport.rows[0].id;
+        }
       }
       await db.query('INSERT INTO turf_sports (turf_id, sport_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [turfId, sportId]);
     }
   }
 
   // Update amenities
-  if (amenities && Array.isArray(amenities)) {
+  let parsedAmenities = amenities;
+  if (typeof amenities === 'string') {
+    try { parsedAmenities = JSON.parse(amenities); }
+    catch (e) { parsedAmenities = amenities.split(',').map(a => a.trim()).filter(Boolean); }
+  }
+  if (parsedAmenities && Array.isArray(parsedAmenities)) {
     await turfRepo.deleteTurfAmenities(turfId);
-    for (let amenityItem of amenities) {
+    for (let amenityItem of parsedAmenities) {
       if (typeof amenityItem === 'object' && amenityItem !== null) { amenityItem = amenityItem.id || amenityItem.name; }
+      if (typeof amenityItem === 'string') amenityItem = amenityItem.trim();
+      if (!amenityItem) continue;
+
       let amenityId = amenityItem;
       if (!UUID_REGEX.test(amenityItem)) {
         const amenityResult = await db.query('SELECT id FROM amenities WHERE name ILIKE $1', [amenityItem]);
-        if (amenityResult.rows.length > 0) { amenityId = amenityResult.rows[0].id; }
-        else { const newAmenity = await db.query('INSERT INTO amenities (name) VALUES ($1) RETURNING id', [amenityItem]); amenityId = newAmenity.rows[0].id; }
+        if (amenityResult.rows.length > 0) {
+          amenityId = amenityResult.rows[0].id;
+        } else {
+          const newAmenity = await db.query(
+            'INSERT INTO amenities (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id',
+            [amenityItem]
+          );
+          amenityId = newAmenity.rows[0].id;
+        }
       }
       await db.query('INSERT INTO turf_amenities (turf_id, amenity_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [turfId, amenityId]);
     }
@@ -130,34 +190,69 @@ const updateTurf = async (userId, turfId, body) => {
 
   // Sync images
   let parsedImages = images;
-  if (typeof images === 'string') { try { parsedImages = JSON.parse(images); } catch (e) { parsedImages = [images]; } }
-  if (parsedImages && Array.isArray(parsedImages)) {
+  if (typeof images === 'string') {
+    try { parsedImages = JSON.parse(images); } catch (e) { parsedImages = [images]; }
+  }
+
+  // Only sync if images was explicitly provided as a non-empty array
+  if (parsedImages && Array.isArray(parsedImages) && parsedImages.length > 0) {
     const existingImagesRes = await db.query('SELECT * FROM turf_images WHERE turf_id = $1', [turfId]);
     const existingImages = existingImagesRes.rows;
-    const incomingUrls = parsedImages.map(img => img.url).filter(Boolean);
-    
-    // Find images to delete
-    const imagesToDelete = existingImages.filter(extImg => !incomingUrls.includes(extImg.image_url));
-    if (imagesToDelete.length > 0) {
-      for (const img of imagesToDelete) {
-        if (img.s3_key) {
-          try {
-            const s3Client = new S3Client({ region: process.env.AWS_REGION, credentials: { accessKeyId: process.env.AWS_ACCESS_KEY_ID, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY } });
-            await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET || process.env.AWS_S3_AVATAR_BUCKET, Key: img.s3_key }));
-          } catch (e) { console.error('S3 Delete error:', e); }
+
+    const incomingItems = parsedImages.map(img => {
+      const url = (typeof img === 'string' ? img : (img?.url || img?.image_url || '')).trim();
+      const id = (img && typeof img === 'object' && img.id) ? String(img.id) : null;
+      const key = (img && typeof img === 'object') ? (img.key || img.s3_key || null) : null;
+      return { id, url, key };
+    }).filter(item => item.url || item.id);
+
+    const incomingUrls = incomingItems.map(i => i.url).filter(Boolean);
+    const incomingIds = incomingItems.map(i => i.id).filter(Boolean);
+
+    // Check if incoming list includes any existing images (i.e. full gallery provided vs only appending new images)
+    const hasExistingMatch = existingImages.some(extImg =>
+      incomingIds.includes(String(extImg.id)) || incomingUrls.includes(extImg.image_url)
+    );
+
+    // If incoming images explicitly includes existing ones, delete existing images that were omitted
+    if (hasExistingMatch) {
+      const imagesToDelete = existingImages.filter(extImg =>
+        !incomingIds.includes(String(extImg.id)) && !incomingUrls.includes(extImg.image_url)
+      );
+
+      if (imagesToDelete.length > 0) {
+        for (const img of imagesToDelete) {
+          if (img.s3_key) {
+            try {
+              const s3Client = new S3Client({
+                region: process.env.AWS_REGION,
+                credentials: {
+                  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+                },
+              });
+              await s3Client.send(new DeleteObjectCommand({
+                Bucket: process.env.AWS_S3_BUCKET || process.env.AWS_S3_AVATAR_BUCKET,
+                Key: img.s3_key,
+              }));
+            } catch (e) {
+              console.error('S3 Delete error:', e);
+            }
+          }
+          await db.query('DELETE FROM turf_images WHERE id = $1', [img.id]);
         }
-        await db.query('DELETE FROM turf_images WHERE id = $1', [img.id]);
       }
     }
-    
+
     // Insert new images
     const existingUrls = existingImages.map(img => img.image_url);
-    const imagesToInsert = parsedImages.filter(img => img.url && !existingUrls.includes(img.url));
+    const imagesToInsert = incomingItems.filter(item => item.url && !existingUrls.includes(item.url));
+
     if (imagesToInsert.length > 0) {
       const orderRes = await turfRepo.getImageMaxOrder(turfId);
-      let currentOrder = parseInt(orderRes.rows[0].max_order) + 1;
+      let currentOrder = parseInt(orderRes.rows[0].max_order, 10) + 1;
       for (const img of imagesToInsert) {
-        if (!img || typeof img.url !== 'string' || !img.url.trim()) continue;
+        if (!img.url) continue;
         await turfRepo.insertTurfImageSimple(turfId, { url: img.url, key: img.key || null, currentOrder });
         currentOrder++;
       }

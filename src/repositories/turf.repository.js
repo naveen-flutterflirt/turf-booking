@@ -10,6 +10,12 @@ const insertTurf = (client, values) =>
 const findSportByName = (client, name) =>
   client.query('SELECT id FROM sports WHERE name ILIKE $1', [name]);
 
+const insertSport = (client, name) =>
+  client.query(
+    'INSERT INTO sports (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id',
+    [name]
+  );
+
 const findAmenityByName = (client, name) =>
   client.query('SELECT id FROM amenities WHERE name ILIKE $1', [name]);
 
@@ -146,7 +152,7 @@ const checkSportInTurf = (turfId, sportId) =>
   db.query('SELECT 1 FROM turf_sports WHERE turf_id = $1 AND sport_id = $2 AND is_active = TRUE', [turfId, sportId]);
 
 module.exports = {
-  insertTurf, findSportByName, findAmenityByName, insertAmenity,
+  insertTurf, findSportByName, insertSport, findAmenityByName, insertAmenity,
   linkTurfSport, linkTurfAmenity, insertTurfImage, insertTurfImageSimple,
   getOwnerTurfs, checkTurfOwnership, checkTurfOwnershipByUser,
   updateTurf, deleteTurfSports, deleteTurfAmenities, getFullTurf,
