@@ -31,8 +31,12 @@ const getAllOwners = () => db.query(`SELECT o.id AS owner_id, o.business_name, o
      GROUP BY o.id, u.id ORDER BY o.created_at DESC`);
 const submitOwnerQuery = (ownerId, subject, message) => db.query(`INSERT INTO owner_queries (owner_id, subject, message) VALUES ($1, $2, $3) RETURNING *`,
 	[ownerId, subject, message]);
-const getOwnerQueries = (ownerId) => db.query(`SELECT id, subject, message, admin_reply, status, created_at, updated_at
-     FROM owner_queries WHERE owner_id = $1 ORDER BY created_at DESC`,
+const getOwnerQueries = (ownerId) => db.query(`SELECT q.id, q.subject, q.message, q.admin_reply, q.status, q.created_at, q.updated_at,
+       u.name AS customer_name, u.name AS owner_name, u.email AS customer_email, o.business_name
+     FROM owner_queries q
+     JOIN owners o ON q.owner_id = o.id
+     JOIN users u ON o.user_id = u.id
+     WHERE q.owner_id = $1 ORDER BY q.created_at DESC`,
 	[ownerId]);
 const getOwnerById = (ownerId) => db.query(`SELECT o.id AS owner_id, o.business_name, o.created_at AS owner_created_at,
             o.account_name, o.account_number, o.ifsc_code, o.bank_name, o.bank_verification_status, o.payout_details_completed,
