@@ -14,6 +14,7 @@ const notificationRoutes = require('./src/routes/notification.routes');
 const feedbackRoutes = require('./src/routes/feedback.routes');
 const communityRoutes = require('./src/routes/community.routes');
 const couponRoutes = require('./src/routes/coupon.routes');
+const eventRoutes = require('./src/routes/event.routes');
 const {
 	initSocket
 } = require('./src/config/socket');
@@ -41,7 +42,7 @@ const httpServer = http.createServer(app);
 // Initialize Socket.io
 initSocket(httpServer);
 // Secure CORS Configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'https://turf-admin-dashboard-six.vercel.app']; // default local dev ports and production admin panel
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'https://turf-admin-dashboard-six.vercel.app']; // default local dev ports and production admin panel
 app.use(cors({
 	origin: function(origin, callback) {
 		// Allow requests with no origin (like your Mobile App, Postman, or curl)
@@ -74,7 +75,6 @@ app.use(express.static('public', {
 		}
 	}
 }));
-
 // --- ROUTES ---
 // Health check
 app.get('/health', (req, res) => {
@@ -102,6 +102,7 @@ app.use('/owner', ownerRoutes);
 app.use('/admin', adminRoutes);
 app.use('/community', communityRoutes);
 app.use('/coupons', couponRoutes);
+app.use('/events', eventRoutes);
 // --- GLOBAL ERROR HANDLER ---
 // Catch all unhandled errors so Express doesn't leak HTML stack traces
 app.use((err, req, res, next) => {
